@@ -29,8 +29,8 @@ if __name__ == '__main__':
     args = args_parser()
     exp_details(args)
 
-    if args.gpu_id:
-        torch.cuda.set_device(args.gpu_id)
+    if args.gpu:
+        torch.cuda.set_device(args.gpu)
     device = 'cuda' if args.gpu else 'cpu'
 
     # load dataset and user groups
@@ -79,7 +79,9 @@ if __name__ == '__main__':
         global_model.train()
         m = max(int(args.frac * args.num_users), 1)
         idxs_users = np.random.choice(range(args.num_users), m, replace=False)
+        global_weights_before = copy.deepcopy(global_model.state_dict())
 
+        clientid_to_grad = {}
         for idx in idxs_users:
             local_model = LocalUpdate(args=args, dataset=train_dataset,
                                       idxs=user_groups[idx], logger=logger)
@@ -87,9 +89,21 @@ if __name__ == '__main__':
                 model=copy.deepcopy(global_model), global_round=epoch)
             local_weights.append(copy.deepcopy(w))
             local_losses.append(copy.deepcopy(loss))
+            grad={}
+            for key in w.keys():
+                grad[key] = (w[key]- global_weights_before[key]).data.cpu().numpy()
+            clientid_to_grad[idx] = grad    
+                
+            print(idx,grad.keys())
+            # print('epoch_num:{}'.format(epoch))
+
 
         # update global weights
         global_weights = average_weights(local_weights)
+        global_grad={}
+        for key in global_weights.keys():
+            global_grad[key] = (global_weights[key]- global_weights_before[key]).data.cpu().numpy()
+        print(f'global_grad:{global_grad}')
 
         # update global weights
         global_model.load_state_dict(global_weights)
