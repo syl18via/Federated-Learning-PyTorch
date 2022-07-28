@@ -103,7 +103,24 @@ if __name__ == '__main__':
         global_grad={}
         for key in global_weights.keys():
             global_grad[key] = (global_weights[key]- global_weights_before[key]).data.cpu().numpy()
-        print(f'global_grad:{global_grad}')
+        # print(f'global_grad:{global_grad}')
+
+        #calculate projection of client local gradient on global gradient
+        clientID2proj = {}
+        for idx in idxs_users:
+            #### Method 2
+            proj_dict = {}
+            for key in global_weights.keys():
+                _global_grad = global_grad[key].flatten()
+                g_norm = np.sqrt(sum(_global_grad**2))
+                # print(type(g_norm), g_norm.shape)
+                local_grad = clientid_to_grad[idx][key].flatten()
+                try:
+                    proj_dict[key]= np.dot(local_grad, _global_grad) / g_norm
+                except:
+                    import code; code.interact(local=locals())
+            clientID2proj[idx] = np.array(list(proj_dict.values())).mean()
+        print('clientID2proj', clientID2proj)
 
         # update global weights
         global_model.load_state_dict(global_weights)
@@ -136,9 +153,11 @@ if __name__ == '__main__':
     print("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
 
     # Saving the objects train_loss and train_accuracy:
-    file_name = '../save/objects/{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}].pkl'.\
+    save_dir = ".workspace/save/objects"
+    os.makedirs(save_dir, exist_ok=True)
+    file_name = os.path.join(save_dir, '{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}].pkl'.\
         format(args.dataset, args.model, args.epochs, args.frac, args.iid,
-               args.local_ep, args.local_bs)
+               args.local_ep, args.local_bs))
 
     with open(file_name, 'wb') as f:
         pickle.dump([train_loss, train_accuracy], f)
