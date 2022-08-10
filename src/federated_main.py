@@ -72,13 +72,57 @@ if __name__ == '__main__':
     print_every = 2
     val_loss_pre, counter = 0, 0
 
-    for epoch in tqdm(range(args.epochs)):
+    import math
+    client_proj = np.array([-math.inf] * args.num_users)
+
+    # 你就在这里写一个client 选择函数，返回idxs_users，表示被选到的client的ID， 对的，
+    # 然后后面变复杂之后，这里的选择函数的输入参数会更加复杂，要结合我们统计的momentum-based gradient projection 选择
+    def momemtum_based(num_users, momemtum_based_grad_proj):
+        ''' momemtum_based_grad_proj 是一个list，长度等于 总的client数量，挑出momemtum_based_grad_proj最小的num_users client
+        '''
+        assert isinstance(momemtum_based_grad_proj, list) or isinstance(momemtum_based_grad_proj, np.ndarray)
+        assert len(momemtum_based_grad_proj) == args.num_users
+        momemtum_based_grad_proj = np.array(momemtum_based_grad_proj)
+        return momemtum_based_grad_proj.argsort()[-num_users:][::-1]
+    
+    def update_client_idx(flag):
+        m = max(int(args.frac * args.num_users), 1)
+        if args.policy == "random":
+            idxs_users = np.random.choice(range(args.num_users), m, replace=False) ### 这句话在选择client， 诶但是他已经实现了，每一个global step update 一次
+        elif args.policy == "momentum":
+            if flag == True :
+                idxs_users = momemtum_based(args.num_users, client_proj)
+            else:
+                idxs_users = momemtum_based(m, client_proj)
+        return idxs_users
+
+    def update_proj_list(global_weights):
+        #calculate projection of client local gradient on global gradient
+        # clientID2proj = {}
+        for idx in idxs_users:
+            #### Method 2
+            proj_dict = {}
+            for key in global_weights.keys():
+                _global_grad = global_grad[key].flatten()
+                g_norm = np.sqrt(sum(_global_grad**2))
+                # print(type(g_norm), g_norm.shape)
+                local_grad = clientid_to_grad[idx][key].flatten()
+                try:
+                    proj_dict[key]= np.dot(local_grad, _global_grad) / g_norm
+                except:
+                    import code; code.interact(local=locals())
+            # clientID2proj[idx] = np.array(list(proj_dict.values())).mean()
+            client_proj[idx] = np.array(list(proj_dict.values())).mean()
+        # print('clientID2proj', clientID2proj)
+    
+    idxs_users = update_client_idx(flag=True)
+
+    for epoch in (range(args.epochs)):
+        
         local_weights, local_losses = [], []
-        print(f'\n | Global Training Round : {epoch+1} |\n')
+        print(f'\n | Global Training Round : {epoch+1} |')
 
         global_model.train()
-        m = max(int(args.frac * args.num_users), 1)
-        idxs_users = np.random.choice(range(args.num_users), m, replace=False)
         global_weights_before = copy.deepcopy(global_model.state_dict())
 
         clientid_to_grad = {}
@@ -94,7 +138,7 @@ if __name__ == '__main__':
                 grad[key] = (w[key]- global_weights_before[key]).data.cpu().numpy()
             clientid_to_grad[idx] = grad    
                 
-            print(idx,grad.keys())
+            # print(idx,grad.keys())
             # print('epoch_num:{}'.format(epoch))
 
 
@@ -105,24 +149,15 @@ if __name__ == '__main__':
             global_grad[key] = (global_weights[key]- global_weights_before[key]).data.cpu().numpy()
         # print(f'global_grad:{global_grad}')
 
-        #calculate projection of client local gradient on global gradient
-        clientID2proj = {}
-        for idx in idxs_users:
-            #### Method 2
-            proj_dict = {}
-            for key in global_weights.keys():
-                _global_grad = global_grad[key].flatten()
-                g_norm = np.sqrt(sum(_global_grad**2))
-                # print(type(g_norm), g_norm.shape)
-                local_grad = clientid_to_grad[idx][key].flatten()
-                try:
-                    proj_dict[key]= np.dot(local_grad, _global_grad) / g_norm
-                except:
-                    import code; code.interact(local=locals())
-            clientID2proj[idx] = np.array(list(proj_dict.values())).mean()
-        print('clientID2proj', clientID2proj)
+        update_proj_list(global_weights)
+        print(client_proj)
+        # if epoch == 0:
+        #     idxs_users = update_client_idx(flag=True)
+        # else:
+        idxs_users = update_client_idx(flag=False)
+        print(f"Global step/epoch {epoch+1}: selcted idxs {idxs_users}")
 
-        # update global weights
+        # Load global weights to the global model
         global_model.load_state_dict(global_weights)
 
         loss_avg = sum(local_losses) / len(local_losses)

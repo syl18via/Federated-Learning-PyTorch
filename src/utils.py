@@ -26,6 +26,7 @@ def get_dataset(args):
 
         test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
                                       transform=apply_transform)
+                                      
 
         # sample training data amongst users
         if args.iid:

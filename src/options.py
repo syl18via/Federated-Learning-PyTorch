@@ -41,6 +41,8 @@ def args_parser():
     parser.add_argument('--max_pool', type=str, default='True',
                         help="Whether use max pooling rather than \
                         strided convolutions")
+    parser.add_argument('--policy', type=str, default='momentum',
+                        help="select policy for choosing clients")                       
 
     # other arguments
     parser.add_argument('--dataset', type=str, default='mnist', help="name \
@@ -58,7 +60,7 @@ def args_parser():
                         non-i.i.d setting (use 0 for equal splits)')
     parser.add_argument('--stopping_rounds', type=int, default=10,
                         help='rounds of early stopping')
-    parser.add_argument('--verbose', type=int, default=1, help='verbose')
+    parser.add_argument('--verbose', type=int, default=0, help='verbose')
     parser.add_argument('--seed', type=int, default=1, help='random seed')
     args = parser.parse_args()
     return args
