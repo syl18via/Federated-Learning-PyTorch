@@ -9,6 +9,7 @@ import time
 import pickle
 import numpy as np
 from tqdm import tqdm
+from svfl.svfl import calculate_sv
 
 import torch
 from tensorboardX import SummaryWriter
@@ -129,6 +130,9 @@ if __name__ == '__main__':
                 idxs_users = momemtum_based(args.num_users, client_proj)
             else:
                 idxs_users = momemtum_based(m, client_proj)
+        elif args.policy == "shap":
+            ### TODO 
+            idxs_users = np.array(list(range(args.num_users)))[:m]
         elif args.policy == "debug":
             idxs_users = np.array(list(range(args.num_users)))[:m]
         else:
@@ -140,14 +144,37 @@ if __name__ == '__main__':
 
     user2local_model = {}
     def get_local_model_fn(idx):
-        if idx not in user2local_model:
-            user2local_model[idx] = LocalUpdate(
+        if isinstance(idx, np.ndarray):
+            dataidx = np.array([user_groups[i] for i in idx]).flatten()
+            user2local_model["shap"] = LocalUpdate(
                 args=args,
                 dataset=train_dataset,
-                idxs=user_groups[idx],
+                idxs=dataidx,
                 logger=logger,
                 model=global_model)
-        return user2local_model[idx]
+        elif idx == "shap":
+            return user2local_model["shap"]
+        else:
+            if idx not in user2local_model:
+                user2local_model[idx] = LocalUpdate(
+                    args=args,
+                    dataset=train_dataset,
+                    idxs=user_groups[idx],
+                    logger=logger,
+                    model=global_model)
+            return user2local_model[idx]
+
+    def evaluate_model(weights):
+        # function to compute evaluation metric, ex: accuracy, precision
+        local_model = get_local_model_fn("shap")
+        local_model.load_weights(weights)
+        accu, losss = local_model.inference(local_model.model)
+        return accu
+
+    def fed_avg(client2weights):
+        # function to merge the model updates into one model for evaluation, ex: FedAvg, FedProx
+        # global_weights = average_weights(list(client2weights.values()))
+        return average_weights(list(client2weights.values()))
 
     for epoch in (range(args.epochs)): 
         local_weights, local_losses = [], []
@@ -155,15 +182,6 @@ if __name__ == '__main__':
 
         ### NOTE: deepcopy must be used here, or global_weights_before would change according to the weights in global_model
         global_weights_before = copy.deepcopy(global_model.state_dict())
-
-
-        def test(w1, w2):
-            for key in w1:
-                equal = (np.abs(w1[key] - w2[key])/w2[key] < 1e-5).all()
-                if not equal:
-                    print(key, "error")
-                    return
-            print("all right")
 
         for idx in idxs_users:
             local_model = get_local_model_fn(idx)
@@ -179,6 +197,13 @@ if __name__ == '__main__':
         if args.policy == "momentum":
             # print(f'global_grad:{global_grad}')
             client_proj.update_proj_list(idxs_users, global_weights, global_weights_before, local_weights)
+        elif args.policy == "shap":
+            get_local_model_fn(idxs_users)
+            client2weights = dict([(idxs_users[i], local_weights[i]) for i in range(len(idxs_users))])
+            print(f"Calculate shaple value for {len(idxs_users)} clients")
+            sv = calculate_sv(client2weights, evaluate_model, fed_avg)
+            print(sv)
+            raise
         idxs_users = update_client_idx(use_all_users=False)
 
         # print global training loss after every 'i' rounds
