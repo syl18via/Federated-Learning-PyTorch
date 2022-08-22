@@ -79,6 +79,8 @@ def average_weights(w):
     """
     Returns the average of the weights.
     """
+    if len(w) == 1:
+        return w[0]
     w_avg = copy.deepcopy(w[0])
     for key in w_avg.keys():
         for i in range(1, len(w)):
