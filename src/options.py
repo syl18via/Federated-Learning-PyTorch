@@ -58,6 +58,8 @@ def args_parser():
     parser.add_argument('--unequal', type=int, default=0,
                         help='whether to use unequal data splits for  \
                         non-i.i.d setting (use 0 for equal splits)')
+    parser.add_argument('--halfiid', type=int, default=0,
+                        help='Default set to non-halfIID. Set to 1 for halfIID.')
     parser.add_argument('--stopping_rounds', type=int, default=10,
                         help='rounds of early stopping')
     parser.add_argument('--verbose', type=int, default=0, help='verbose')

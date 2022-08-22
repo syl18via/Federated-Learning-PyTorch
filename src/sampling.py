@@ -3,6 +3,7 @@
 # Python version: 3.6
 
 
+from unicodedata import numeric
 import numpy as np
 from torchvision import datasets, transforms
 
@@ -50,6 +51,19 @@ def mnist_noniid(dataset, num_users):
             dict_users[i] = np.concatenate(
                 (dict_users[i], idxs[rand*num_imgs:(rand+1)*num_imgs]), axis=0)
     return dict_users
+
+def mnist_iid_noniid(dataset, num_users):
+    dict_iid = mnist_iid(dataset, num_users)
+    dict_non_iid = mnist_noniid(dataset, num_users)
+    dict_users = {i: np.array([]) for i in range(num_users)}
+    for i in range(num_users):
+        if i < num_users/2:
+            dict_users[i] = dict_iid[i]
+        else:
+            dict_users[i] = dict_non_iid[i]
+    return dict_users
+
+
 
 
 def mnist_noniid_unequal(dataset, num_users):

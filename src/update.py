@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Python version: 3.6
 
+from cProfile import label
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
@@ -29,6 +30,8 @@ class LocalUpdate(object):
         self.logger = logger
         self.trainloader, self.validloader, self.testloader = self.train_val_test(
             dataset, list(idxs))
+        
+        self.trainloader_iter = iter(self.trainloader)
         self.device = 'cuda' if args.gpu else 'cpu'
         # Default criterion set to NLL loss function
         self.criterion = nn.NLLLoss().to(self.device)
@@ -54,7 +57,7 @@ class LocalUpdate(object):
     def update_weights(self, model, global_round):
         # Set mode to train model
         model.train()
-        epoch_loss = []
+        # epoch_loss = []
 
         # Set optimizer for the local updates
         if self.args.optimizer == 'sgd':
@@ -64,27 +67,40 @@ class LocalUpdate(object):
             optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr,
                                          weight_decay=1e-4)
 
-        for iter in range(self.args.local_ep):
-            batch_loss = []
-            for batch_idx, (images, labels) in enumerate(self.trainloader):
-                images, labels = images.to(self.device), labels.to(self.device)
+        # for iter in range(self.args.local_ep):
+        batch_loss = []
+        num_batch = 1
 
-                model.zero_grad()
-                log_probs = model(images)
-                loss = self.criterion(log_probs, labels)
-                loss.backward()
-                optimizer.step()
+        debug = True
+        if debug:
+            num_batch = 1000
 
-                if self.args.verbose and (batch_idx % 10 == 0):
-                    print('| Global Round : {} | Local Epoch : {} | [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                        global_round, iter, batch_idx * len(images),
-                        len(self.trainloader.dataset),
-                        100. * batch_idx / len(self.trainloader), loss.item()))
-                self.logger.add_scalar('loss', loss.item())
-                batch_loss.append(loss.item())
-            epoch_loss.append(sum(batch_loss)/len(batch_loss))
+        for batch_idx in range(num_batch):
+            try:
+                images, labels = next(self.trainloader_iter)
+            except StopIteration:
+                self.trainloader_iter = iter(self.trainloader)
+                images, labels = next(self.trainloader_iter)
+            # for batch_idx, (images, labels) in enumerate(self.trainloader):
+            images, labels = images.to(self.device), labels.to(self.device)
 
-        return model.state_dict(), sum(epoch_loss) / len(epoch_loss)
+            model.zero_grad()
+            log_probs = model(images)
+            loss = self.criterion(log_probs, labels)
+            loss.backward()
+            optimizer.step()
+
+            if self.args.verbose and (batch_idx % 10 == 0):
+                print('| Global Round : {} | [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    global_round, batch_idx * len(images),
+                    len(self.trainloader.dataset),
+                    100. * batch_idx / len(self.trainloader), loss.item()))
+            self.logger.add_scalar('loss', loss.item())
+            batch_loss.append(loss.item())
+        # epoch_loss.append(sum(batch_loss)/len(batch_loss))
+
+        raise
+        return model.state_dict(), sum(batch_loss) / len(batch_loss)
 
     def inference(self, model):
         """ Returns the inference accuracy and loss.

@@ -58,9 +58,11 @@ if __name__ == '__main__':
         exit('Error: unrecognized model')
 
     # Set the model to train and send it to device.
+    # print(args.model)
+    # print(args.dataset)
     global_model.to(device)
     global_model.train()
-    print(global_model)
+    # print(global_model)
 
     # copy weights
     global_weights = global_model.state_dict()
@@ -94,6 +96,10 @@ if __name__ == '__main__':
                 idxs_users = momemtum_based(args.num_users, client_proj)
             else:
                 idxs_users = momemtum_based(m, client_proj)
+        elif args.policy == "debug":
+            idxs_users = np.array(list(range(args.num_users)))[:m]
+        else:
+            raise ValueError(f"Invalid policy {args.policy}")
         return idxs_users
 
     def update_proj_list(global_weights):
@@ -116,11 +122,12 @@ if __name__ == '__main__':
         # print('clientID2proj', clientID2proj)
     
     idxs_users = update_client_idx(flag=True)
+    print(f"Initialized clident IDs: {idxs_users}")
 
     for epoch in (range(args.epochs)):
         
         local_weights, local_losses = [], []
-        print(f'\n | Global Training Round : {epoch+1} |')
+        # print(f'\n | Global Training Round : {epoch+1} |')
 
         global_model.train()
         global_weights_before = copy.deepcopy(global_model.state_dict())
@@ -150,7 +157,7 @@ if __name__ == '__main__':
         # print(f'global_grad:{global_grad}')
 
         update_proj_list(global_weights)
-        print(client_proj)
+        # print(client_proj)
         # if epoch == 0:
         #     idxs_users = update_client_idx(flag=True)
         # else:
@@ -173,12 +180,12 @@ if __name__ == '__main__':
             list_acc.append(acc)
             list_loss.append(loss)
         train_accuracy.append(sum(list_acc)/len(list_acc))
+        # print(f' \nlist acc {list_acc} ')
 
         # print global training loss after every 'i' rounds
         if (epoch+1) % print_every == 0:
-            print(f' \nAvg Training Stats after {epoch+1} global rounds:')
-            print(f'Training Loss : {np.mean(np.array(train_loss))}')
-            print('Train Accuracy: {:.2f}% \n'.format(100*train_accuracy[-1]))
+            print(f' \nAvg Training Stats after {epoch+1} global rounds: Training Loss : {np.mean(np.array(train_loss))}' +
+             'Train Accuracy: {:.2f}% \n'.format(100*train_accuracy[-1]))
 
     # Test inference after completion of training
     test_acc, test_loss = test_inference(args, global_model, test_dataset)
