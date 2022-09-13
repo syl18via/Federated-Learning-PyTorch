@@ -9,7 +9,7 @@ import time
 import pickle
 import numpy as np
 from tqdm import tqdm
-from svfl.svfl import calculate_sv
+from svfl import calculate_sv
 
 import torch
 from tensorboardX import SummaryWriter
@@ -19,9 +19,12 @@ from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
 
-class ClientProj:
+class ClientState:
+    ''' Store statistic information for all clients, which is used for client selection'''
     def __init__(self, num_users):
         self.client2proj = np.array([-math.inf] * num_users)
+        # 在这个类的定义里面新建一个变量 用来存shapley value
+        self.sv = np.array([-math.inf] * num_users)
     
     def update_proj_list(self, idxs_users, global_weights, global_weights_before, local_weights):
         #calculate projection of client local gradient on global gradient
@@ -108,18 +111,27 @@ if __name__ == '__main__':
     val_loss_pre, counter = 0, 0
 
     import math
-    client_proj = ClientProj(args.num_users)
+    client_state = ClientState(args.num_users)
 
     # client 选择函数，返回idxs_users，表示被选到的client的ID， 对的，
     # 然后后面变复杂之后，这里的选择函数的输入参数会更加复杂，要结合我们统计的momentum-based gradient projection 选择
-    def momemtum_based(num_users, client_proj):
-        momemtum_based_grad_proj = client_proj.client2proj
+    def momemtum_based(num_users):
+        # 这里client_state 不需要传参了， 因为client_state在这个函数定义之前就已经定义了，函数内部可以直接访问client_state ok？
+        momemtum_based_grad_proj = client_state.client2proj
         ''' momemtum_based_grad_proj 是一个list，长度等于 总的client数量，挑出momemtum_based_grad_proj最小的num_users client
         '''
         assert isinstance(momemtum_based_grad_proj, list) or isinstance(momemtum_based_grad_proj, np.ndarray)
         assert len(momemtum_based_grad_proj) == args.num_users
         momemtum_based_grad_proj = np.array(momemtum_based_grad_proj)
         return momemtum_based_grad_proj.argsort()[-num_users:][::-1]
+
+    def shap_based(num_users):
+        
+        ''' shap_based_grad_proj 是一个list，长度等于 总的client数量，挑出shap_based_grad_proj最大的num_users client
+        '''
+        sv = client_state.sv
+        shap_based_grad_proj = np.array(sv)
+        return shap_based_grad_proj.argsort()[-num_users:]
     
     def update_client_idx(use_all_users):
         m = max(int(args.frac * args.num_users), 1)
@@ -127,12 +139,14 @@ if __name__ == '__main__':
             idxs_users = np.random.choice(range(args.num_users), m, replace=False) ### 这句话在选择client， 诶但是他已经实现了，每一个global step update 一次
         elif args.policy == "momentum":
             if use_all_users == True :
-                idxs_users = momemtum_based(args.num_users, client_proj)
+                idxs_users = momemtum_based(args.num_users)
             else:
-                idxs_users = momemtum_based(m, client_proj)
+                idxs_users = momemtum_based(m)
         elif args.policy == "shap":
-            ### TODO 
-            idxs_users = np.array(list(range(args.num_users)))[:m]
+            if use_all_users == True :
+                idxs_users = shap_based(args.num_users)
+            else:
+                idxs_users = shap_based(m)
         elif args.policy == "debug":
             idxs_users = np.array(list(range(args.num_users)))[:m]
         else:
@@ -175,7 +189,7 @@ if __name__ == '__main__':
         # function to merge the model updates into one model for evaluation, ex: FedAvg, FedProx
         # global_weights = average_weights(list(client2weights.values()))
         return average_weights(list(client2weights.values()))
-
+    
     for epoch in (range(args.epochs)): 
         local_weights, local_losses = [], []
         global_model.train()
@@ -188,7 +202,7 @@ if __name__ == '__main__':
             _weight, loss = local_model.update_weights(global_model, global_round=epoch)
             local_weights.append(copy.deepcopy(_weight))
             local_losses.append(copy.deepcopy(loss))
-
+        
         ### Update global weights
         global_weights = average_weights(local_weights)
         # Load global weights to the global model
@@ -196,15 +210,18 @@ if __name__ == '__main__':
 
         if args.policy == "momentum":
             # print(f'global_grad:{global_grad}')
-            client_proj.update_proj_list(idxs_users, global_weights, global_weights_before, local_weights)
+            client_state.update_proj_list(idxs_users, global_weights, global_weights_before, local_weights)
+            idxs_users = update_client_idx(use_all_users=False)
         elif args.policy == "shap":
-            get_local_model_fn(idxs_users)
-            client2weights = dict([(idxs_users[i], local_weights[i]) for i in range(len(idxs_users))])
-            print(f"Calculate shaple value for {len(idxs_users)} clients")
-            sv = calculate_sv(client2weights, evaluate_model, fed_avg)
-            print(sv)
-            raise
-        idxs_users = update_client_idx(use_all_users=False)
+            if epoch == 0:
+                get_local_model_fn(idxs_users)
+                client2weights = dict([(idxs_users[i], local_weights[i]) for i in range(len(idxs_users))])
+                print(f"Calculate shaple value for {len(idxs_users)} clients")
+                sv = calculate_sv(client2weights, evaluate_model, fed_avg)
+                print(sv)
+            
+                idxs_users = update_client_idx(use_all_users=False)
+            
 
         # print global training loss after every 'i' rounds
         if (epoch+1) % print_every == 0:
