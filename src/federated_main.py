@@ -18,7 +18,7 @@ from options import args_parser
 from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
-
+np.random.seed(1)
 class ClientState:
     ''' Store statistic information for all clients, which is used for client selection'''
     def __init__(self, num_users):
@@ -113,6 +113,14 @@ if __name__ == '__main__':
     import math
     client_state = ClientState(args.num_users)
 
+    user2local_model = {}
+    dataidx = np.array([np.array(list(user_groups[i])) for i in range(args.num_users)]).flatten()
+    user2local_model["test"] = LocalUpdate(
+        args=args,
+        dataset=train_dataset,
+        idxs=dataidx,
+        logger=logger,
+        model=global_model)
     # client 选择函数，返回idxs_users，表示被选到的client的ID， 对的，
     # 然后后面变复杂之后，这里的选择函数的输入参数会更加复杂，要结合我们统计的momentum-based gradient projection 选择
     def momemtum_based(num_users):
@@ -123,7 +131,7 @@ if __name__ == '__main__':
         assert isinstance(momemtum_based_grad_proj, list) or isinstance(momemtum_based_grad_proj, np.ndarray)
         assert len(momemtum_based_grad_proj) == args.num_users
         momemtum_based_grad_proj = np.array(momemtum_based_grad_proj)
-        return momemtum_based_grad_proj.argsort()[-num_users:][::-1]
+        return momemtum_based_grad_proj.argsort()[:num_users]
 
     def shap_based(num_users):
         
@@ -156,17 +164,9 @@ if __name__ == '__main__':
     idxs_users = update_client_idx(use_all_users=True)
     print(f"Initialized clident IDs: {idxs_users}")
 
-    user2local_model = {}
+    
     def get_local_model_fn(idx):
-        if isinstance(idx, np.ndarray):
-            dataidx = np.array([user_groups[i] for i in idx]).flatten()
-            user2local_model["shap"] = LocalUpdate(
-                args=args,
-                dataset=train_dataset,
-                idxs=dataidx,
-                logger=logger,
-                model=global_model)
-        elif idx == "shap":
+        if idx == "shap":
             return user2local_model["shap"]
         else:
             if idx not in user2local_model:
@@ -180,7 +180,7 @@ if __name__ == '__main__':
 
     def evaluate_model(weights):
         # function to compute evaluation metric, ex: accuracy, precision
-        local_model = get_local_model_fn("shap")
+        local_model = user2local_model["test"]
         local_model.load_weights(weights)
         accu, losss = local_model.inference(local_model.model)
         return accu
@@ -214,12 +214,10 @@ if __name__ == '__main__':
             idxs_users = update_client_idx(use_all_users=False)
         elif args.policy == "shap":
             if epoch == 0:
-                get_local_model_fn(idxs_users)
                 client2weights = dict([(idxs_users[i], local_weights[i]) for i in range(len(idxs_users))])
                 print(f"Calculate shaple value for {len(idxs_users)} clients")
                 sv = calculate_sv(client2weights, evaluate_model, fed_avg)
-                print(sv)
-            
+                client_state.sv=sv
                 idxs_users = update_client_idx(use_all_users=False)
             
 
@@ -231,12 +229,8 @@ if __name__ == '__main__':
             # Calculate avg training accuracy over all users at every epoch
             list_acc, list_loss = [], []
             global_model.eval()
-            for c in range(args.num_users):
-                local_model = get_local_model_fn(idx)
-                acc, loss = local_model.inference(model=global_model)
-                list_acc.append(acc)
-                list_loss.append(loss)
-            train_accuracy.append(sum(list_acc)/len(list_acc))
+            accu= evaluate_model(global_weights)
+            train_accuracy.append(accu)
             # print(f' \nlist acc {list_acc} ')
             
             print(f'Avg Training Stats after {epoch+1} global rounds: Training Loss : {np.mean(np.array(train_loss)):.3f}'
