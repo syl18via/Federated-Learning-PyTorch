@@ -127,3 +127,4 @@ def calculate_sv(models, model_evaluation_func, averaging_func):
     # sv = calculate_sv_v1(models, model_evaluation_func, averaging_func)
     sv = calculate_sv_v2(models, model_evaluation_func, averaging_func)
     print(f"Take {time.time()-ts:.3f} s to calculate sv for {list(models.keys())}")
+    return sv
