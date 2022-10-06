@@ -3,6 +3,7 @@
 # Python version: 3.6
 
 
+from asyncio import tasks
 import os
 import copy
 import time
@@ -10,6 +11,8 @@ import pickle
 import numpy as np
 from tqdm import tqdm
 from svfl import calculate_sv
+from task import Task
+import util
 
 import torch
 from tensorboardX import SummaryWriter
@@ -55,6 +58,17 @@ class ClientState:
             self.client2proj[idx] = np.array(list(proj_dict.values())).mean()
         # print('clientID2proj', clientID2proj)
 
+### Experiment Configs
+MIX_RATIO = 0.8
+SIMULATE = False
+EPOCH_NUM = 35
+TRIAL_NUM = 1
+TASK_NUM = 2
+
+bid_per_loss_delta_space = [1]
+required_client_num_space = [3]
+target_labels_space = [[0,1,2,3,4,6,7,8,9]]
+
 if __name__ == '__main__':
     start_time = time.time()
 
@@ -64,41 +78,90 @@ if __name__ == '__main__':
 
     args = args_parser()
     exp_details(args)
+    
 
-    if args.gpu:
-        torch.cuda.set_device(args.gpu)
-    device = 'cuda' if args.gpu else 'cpu'
 
-    # load dataset and user groups
-    train_dataset, test_dataset, user_groups = get_dataset(args)
+    task0 = Task(task_id=0,args = args)
+     ############################### Task ###########################################
+    ### Initialize the global model parameters for both tasks
+    ### At the first epoch, both tasks select all clients
+    task_list = []
+    def create_task(selected_client_idx, required_client_num, bid_per_loss_delta, target_labels=None):
+        task = Task(
+            task_id = len(task_list),
+            selected_client_idx=selected_client_idx,
+            required_client_num=required_client_num,
+            bid_per_loss_delta=bid_per_loss_delta,
+            target_labels=target_labels)
+        # assert task.target_labels is not None, target_labels
+        task_list.append(task)
 
-    # BUILD MODEL
-    if args.model == 'cnn':
-        # Convolutional neural netork
-        if args.dataset == 'mnist':
-            global_model = CNNMnist(args=args)
-        elif args.dataset == 'fmnist':
-            global_model = CNNFashion_Mnist(args=args)
-        elif args.dataset == 'cifar':
-            global_model = CNNCifar(args=args)
+        ### Init the loss
+        task.prev_loss = task.evaluate_model(test_dataset)
+    
+    for task_id in range(TASK_NUM):
+        create_task(
+            selected_client_idx=list(range(args.num_users)),
+            required_client_num=util.sample_config(required_client_num_space, task_id, use_random=False),
+            bid_per_loss_delta=util.sample_config(bid_per_loss_delta_space, task_id, use_random=False),
+            target_labels=util.sample_config(target_labels_space, task_id, use_random=False)
+        )
+    
+    
+    ############################### Main process of FL ##########################################
+    total_reward_list = []
+    succ_cnt_list = []
+    reward_sum=[]
+    for epoch in range(EPOCH_NUM):
+        for task in task_list:
+            task.epoch = epoch
 
-    elif args.model == 'mlp':
-        # Multi-layer preceptron
-        img_size = train_dataset[0][0].shape
-        len_in = 1
-        for x in img_size:
-            len_in *= x
-            global_model = MLP(dim_in=len_in, dim_hidden=64,
-                               dim_out=args.num_classes)
-    else:
-        exit('Error: unrecognized model')
+        for round_idx in range(1):
+            ### Train the model parameters distributedly
+            #   return a list of model parameters
+            #       local_models[0][0], weights of the 0-th agent
+            #       local_models[0][1], bias of the 0-th agent
 
-    # Set the model to train and send it to device.
-    # print(args.model)
-    # print(args.dataset)
-    global_model.to(device)
-    global_model.train()
-    # print(global_model)
+            for task in task_list:
+                train_one_round(
+                    task,
+                    round_idx,
+                    learning_rate,
+                    epoch,
+                    all_client_data,
+                    all_client_data_full,
+                    test_data,
+                    ckpt=False,
+                    evaluate_each_client=False)
+            
+            learning_rate = learning_rate * 0.7
+
+        ### At the end of this epoch
+        ### At the first epoch, calculate the Feedback and update clients for each task
+        
+        
+
+        ### Update price table    
+
+    
+        ### Update bid table
+
+        ###select clients for all tasks 
+              
+        for task in task_list:
+            task.end_of_epoch()
+
+        ### caclulate reward
+       
+
+        ### Count successful matching
+
+
+
+
+
+
+    
 
     # copy weights
     global_weights = global_model.state_dict()
