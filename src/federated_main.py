@@ -81,13 +81,13 @@ if __name__ == '__main__':
     
 
 
-    task0 = Task(task_id=0,args = args)
-     ############################### Task ###########################################
+
+    ############################### Task ###########################################
     ### Initialize the global model parameters for both tasks
     ### At the first epoch, both tasks select all clients
     task_list = []
     def create_task(selected_client_idx, required_client_num, bid_per_loss_delta, target_labels=None):
-        task = Task(
+        task = Task(args,logger,
             task_id = len(task_list),
             selected_client_idx=selected_client_idx,
             required_client_num=required_client_num,
@@ -97,7 +97,7 @@ if __name__ == '__main__':
         task_list.append(task)
 
         ### Init the loss
-        task.prev_loss = task.evaluate_model(test_dataset)
+        task.prev_loss = task.evaluate_model()
     
     for task_id in range(TASK_NUM):
         create_task(
@@ -119,22 +119,10 @@ if __name__ == '__main__':
         for round_idx in range(1):
             ### Train the model parameters distributedly
             #   return a list of model parameters
-            #       local_models[0][0], weights of the 0-th agent
-            #       local_models[0][1], bias of the 0-th agent
-
+           
             for task in task_list:
-                train_one_round(
-                    task,
-                    round_idx,
-                    learning_rate,
-                    epoch,
-                    all_client_data,
-                    all_client_data_full,
-                    test_data,
-                    ckpt=False,
-                    evaluate_each_client=False)
+                task.train_one_round()
             
-            learning_rate = learning_rate * 0.7
 
         ### At the end of this epoch
         ### At the first epoch, calculate the Feedback and update clients for each task
@@ -167,23 +155,15 @@ if __name__ == '__main__':
     global_weights = global_model.state_dict()
 
     # Training
-    train_loss, train_accuracy = [], []
+
     val_acc_list, net_list = [], []
     cv_loss, cv_acc = [], []
-    print_every = 10
+    
     val_loss_pre, counter = 0, 0
 
     import math
     client_state = ClientState(args.num_users)
 
-    user2local_model = {}
-    dataidx = np.array([np.array(list(user_groups[i])) for i in range(args.num_users)]).flatten()
-    user2local_model["test"] = LocalUpdate(
-        args=args,
-        dataset=train_dataset,
-        idxs=dataidx,
-        logger=logger,
-        model=global_model)
     # client 选择函数，返回idxs_users，表示被选到的client的ID， 对的，
     # 然后后面变复杂之后，这里的选择函数的输入参数会更加复杂，要结合我们统计的momentum-based gradient projection 选择
     def momemtum_based(num_users):
@@ -228,25 +208,8 @@ if __name__ == '__main__':
     print(f"Initialized clident IDs: {idxs_users}")
 
     
-    def get_local_model_fn(idx):
-        if idx == "shap":
-            return user2local_model["shap"]
-        else:
-            if idx not in user2local_model:
-                user2local_model[idx] = LocalUpdate(
-                    args=args,
-                    dataset=train_dataset,
-                    idxs=user_groups[idx],
-                    logger=logger,
-                    model=global_model)
-            return user2local_model[idx]
+   
 
-    def evaluate_model(weights):
-        # function to compute evaluation metric, ex: accuracy, precision
-        local_model = user2local_model["test"]
-        local_model.load_weights(weights)
-        accu, losss = local_model.inference(local_model.model)
-        return accu
 
     def fed_avg(client2weights):
         # function to merge the model updates into one model for evaluation, ex: FedAvg, FedProx
@@ -254,23 +217,13 @@ if __name__ == '__main__':
         return average_weights(list(client2weights.values()))
     
     for epoch in (range(args.epochs)): 
-        local_weights, local_losses = [], []
-        global_model.train()
 
-        ### NOTE: deepcopy must be used here, or global_weights_before would change according to the weights in global_model
-        global_weights_before = copy.deepcopy(global_model.state_dict())
 
-        for idx in idxs_users:
-            local_model = get_local_model_fn(idx)
-            _weight, loss = local_model.update_weights(global_model, global_round=epoch)
-            local_weights.append(copy.deepcopy(_weight))
-            local_losses.append(copy.deepcopy(loss))
-        
-        ### Update global weights
-        global_weights = average_weights(local_weights)
-        # Load global weights to the global model
-        global_model.load_state_dict(global_weights)
 
+        xxx
+
+
+        ### update clients based on different policies
         if args.policy == "momentum":
             # print(f'global_grad:{global_grad}')
             client_state.update_proj_list(idxs_users, global_weights, global_weights_before, local_weights)
@@ -283,22 +236,6 @@ if __name__ == '__main__':
                 client_state.sv=sv
                 idxs_users = update_client_idx(use_all_users=False)
             
-
-        # print global training loss after every 'i' rounds
-        if (epoch+1) % print_every == 0:
-            loss_avg = sum(local_losses) / len(local_losses)
-            train_loss.append(loss_avg)
-
-            # Calculate avg training accuracy over all users at every epoch
-            list_acc, list_loss = [], []
-            global_model.eval()
-            accu= evaluate_model(global_weights)
-            train_accuracy.append(accu)
-            # print(f' \nlist acc {list_acc} ')
-            
-            print(f'Avg Training Stats after {epoch+1} global rounds: Training Loss : {np.mean(np.array(train_loss)):.3f}'
-             f', Train Accuracy: {100*train_accuracy[-1]:.3f}% selcted idxs {idxs_users}')
-
     # Test inference after completion of training
     test_acc, test_loss = test_inference(args, global_model, test_dataset)
 

@@ -13,13 +13,17 @@ from options import args_parser
 from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
+from client import get_local_model_fn
+
+
+PRINT_EVERY = 10
 
 class Task:
-    def __init__(self, task_id, selected_client_idx,
+    def __init__(self, args,
+            logger,task_id, selected_client_idx,
             required_client_num=None,
             bid_per_loss_delta=None,
-            target_labels=None,
-            args= None):
+            target_labels=None):
 
 
 
@@ -57,6 +61,7 @@ class Task:
         self.global_model.to(device)
         self.global_model.train()
         # print(self.global_model)
+        self.train_loss, self.train_accuracy = [], []
 
 
 
@@ -74,9 +79,64 @@ class Task:
         self.params_per_client = None
 
         self.target_labels = target_labels
+
+        self.init_test_model(args, train_dataset, logger, user_groups)
         
-    def evaluate_model(self, test_dataset):
-        raise
+    def train_one_round(self):
+        
+        local_weights, local_losses = [], []
+        self.global_model.train()
+
+        ### NOTE: deepcopy must be used here, or global_weights_before would change according to the weights in global_model
+        global_weights_before = copy.deepcopy(self.global_model.state_dict())
+
+        for idx in self.selected_client_idx: 
+            local_model = get_local_model_fn(idx)
+            _weight, loss = local_model.update_weights(self.global_model, global_round=epoch)
+            local_weights.append(copy.deepcopy(_weight))
+            local_losses.append(copy.deepcopy(loss))
+        
+        ### Update global weights
+        global_weights = average_weights(local_weights)
+        # Load global weights to the global model
+        self.global_model.load_state_dict(global_weights)
+
+   
+
+        # print global training loss after every 'i' rounds
+        if (self.epoch+1) % PRINT_EVERY == 0:
+            loss_avg = sum(local_losses) / len(local_losses)
+            self.train_loss.append(loss_avg)
+
+            # Calculate avg training accuracy over all users at every epoch
+            list_acc, list_loss = [], []
+            self.global_model.eval()
+            
+            accu= self.evaluate_model(global_weights)
+            self.train_accuracy.append(accu)
+            # print(f' \nlist acc {list_acc} ')
+            
+            print(f'Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {np.mean(np.array(train_loss)):.3f}'
+             f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {idxs_users}')
+    
+    def init_test_model(self, args,train_dataset, logger,user_groups):
+        dataidx = np.array([np.array(list(user_groups[i])) for i in range(args.num_users)]).flatten()
+        self.test_model = LocalUpdate(
+            args=args,
+            dataset=train_dataset,
+            idxs=dataidx,
+            logger=logger,
+            model=self.global_model)
+
+    def evaluate_model(self, weights=None):
+        # function to compute evaluation metric, ex: accuracy, precision
+        if weights is None:
+            self.test_model.load_weights(self.global_model.state_dict())
+        else:
+            self.test_model.load_weights(weights)
+        accu, losss = self.test_model.inference(self.test_model.model)
+        return accu
+   
     def log(self, *args, **kwargs):
         print("[Task {} - epoch {}]: ".format(self.task_id, self.epoch), *args, **kwargs)
 
