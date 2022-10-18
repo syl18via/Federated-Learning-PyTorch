@@ -83,7 +83,8 @@ class Task:
                 self.global_model = CNNFashion_Mnist(args=args)
             elif args.dataset == 'cifar':
                 self.global_model = CNNCifar(args=args)
-
+            else:
+                raise ValueError(f"Invalid dataset {args.dataset}")
         elif args.model == 'mlp':
             # Multi-layer preceptron
             img_size = self.train_dataset[0][0].shape
