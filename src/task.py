@@ -4,6 +4,7 @@ import time
 import pickle
 import numpy as np
 from tqdm import tqdm
+import math
 
 
 import torch
@@ -13,8 +14,44 @@ from options import args_parser
 from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
-from client import get_local_model_fn
+from client import Client
 from svfl import calculate_sv
+
+class ClientState:
+    ''' Store statistic information for all clients, which is used for client selection'''
+    def __init__(self, num_users):
+        self.client2proj = np.array([-math.inf] * num_users)
+        # 在这个类的定义里面新建一个变量 用来存shapley value
+        self.sv = np.array([-math.inf] * num_users)
+    
+    def update_proj_list(self, idxs_users, global_weights, global_weights_before, local_weights):
+        #calculate projection of client local gradient on global gradient
+        global_grad={}
+        for key in global_weights.keys():
+            global_grad[key] = (global_weights[key]- global_weights_before[key]).data.cpu().numpy()
+
+        clientid_to_grad = {}
+        for i, idx in enumerate(idxs_users):
+            clientid_to_grad[idx] = {}
+            for key in local_weights[i].keys():
+                clientid_to_grad[idx][key] = (local_weights[i][key]- global_weights_before[key]).data.cpu().numpy()
+
+        # clientID2proj = {}
+        for idx in idxs_users:
+            #### Method 2
+            proj_dict = {}
+            for key in global_weights.keys():
+                _global_grad = global_grad[key].flatten()
+                g_norm = np.sqrt(sum(_global_grad**2))
+                # print(type(g_norm), g_norm.shape)
+                local_grad = clientid_to_grad[idx][key].flatten()
+                try:
+                    proj_dict[key]= np.dot(local_grad, _global_grad) / g_norm
+                except:
+                    import code; code.interact(local=locals())
+            # clientID2proj[idx] = np.array(list(proj_dict.values())).mean()
+            self.client2proj[idx] = np.array(list(proj_dict.values())).mean()
+        # print('clientID2proj', clientID2proj)
 
 PRINT_EVERY = 10
 
@@ -30,14 +67,12 @@ class Task:
             bid_per_loss_delta=None,
             target_labels=None):
 
-
-
         if args.gpu:
             torch.cuda.set_device(args.gpu)
         device = 'cuda' if args.gpu else 'cpu'
 
         # load dataset and user groups
-        train_dataset, test_dataset, user_groups = get_dataset(args)
+        self.train_dataset, self.test_dataset, self.user_groups = get_dataset(args)
 
         # BUILD MODEL
         if args.model == 'cnn':
@@ -51,7 +86,7 @@ class Task:
 
         elif args.model == 'mlp':
             # Multi-layer preceptron
-            img_size = train_dataset[0][0].shape
+            img_size = self.train_dataset[0][0].shape
             len_in = 1
             for x in img_size:
                 len_in *= x
@@ -85,9 +120,16 @@ class Task:
 
         self.target_labels = target_labels
 
-        self.init_test_model(args, train_dataset, logger, user_groups)
+        self.init_test_model(args, logger)
     
         self.local_weights = []
+
+        self.args = args
+        self.logger = logger
+        self.selected_clients = None
+        self.client_state = ClientState(args.num_users)
+
+        self.init_select_clients()
 
     def train_one_round(self):
         
@@ -97,9 +139,10 @@ class Task:
         ### NOTE: deepcopy must be used here, or global_weights_before would change according to the weights in global_model
         global_weights_before = copy.deepcopy(self.global_model.state_dict())
 
-        for idx in self.selected_client_idx: 
-            local_model = get_local_model_fn(idx)
-            _weight, loss = local_model.update_weights(self.global_model, global_round=epoch)
+        for idx in range(len(self.selected_client_idx)):
+            ### Here idx is NOT the client idx
+            client = self.selected_clients[idx]
+            _weight, loss = client.train_step(self.global_model, self.epoch)
             self.local_weights.append(copy.deepcopy(_weight))
             local_losses.append(copy.deepcopy(loss))
         
@@ -108,7 +151,9 @@ class Task:
         # Load global weights to the global model
         self.global_model.load_state_dict(global_weights)
 
-   
+        if self.args.policy == "momentum":
+            self.client_state.update_proj_list(self.selected_client_idx,
+                global_weights, global_weights_before, self.local_weights)
 
         # print global training loss after every 'i' rounds
         if (self.epoch+1) % PRINT_EVERY == 0:
@@ -123,14 +168,14 @@ class Task:
             self.train_accuracy.append(accu)
             # print(f' \nlist acc {list_acc} ')
             
-            print(f'Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {np.mean(np.array(train_loss)):.3f}'
-             f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {idxs_users}')
+            print(f'Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {np.mean(np.array(self.train_loss)):.3f}'
+             f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {self.selected_client_idx}')
     
-    def init_test_model(self, args,train_dataset, logger,user_groups):
-        dataidx = np.array([np.array(list(user_groups[i])) for i in range(args.num_users)]).flatten()
+    def init_test_model(self, args, logger):
+        dataidx = np.array([np.array(list(self.user_groups[i])) for i in range(args.num_users)]).flatten()
         self.test_model = LocalUpdate(
             args=args,
-            dataset=train_dataset,
+            dataset=self.train_dataset,
             idxs=dataidx,
             logger=logger,
             model=self.global_model)
@@ -180,6 +225,10 @@ class Task:
         self.log("Clients {} are selected.".format(self.selected_client_idx))
 
     def shap(self):
+
+        # ### TODO used for debug
+        # return [1] * len(self.selected_client_idx)
+
         client2weights = dict([(self.selected_client_idx[i], self.local_weights[i]) for i in range(len(self.selected_client_idx))])
         print(f"Calculate shaple value for {len(self.selected_client_idx)} clients")
         sv = calculate_sv(client2weights, self.evaluate_model, fed_avg)
@@ -196,4 +245,21 @@ class Task:
 
         print('Total Run Time: {0:0.4f}\n'.format(time.time()-start_time))
 
+    def init_select_clients(self):
+        self.selected_clients = []
+        if self.selected_client_idx is None:
+            return
+        for client_idx in self.selected_client_idx:
+            self.selected_clients.append(
+                Client(self.args, self.train_dataset, self.user_groups,
+                    client_idx, self.logger, self.global_model))
+
+    @property
+    def delta_accu(self):
+        if len(self.train_accuracy) == 0:
+            return 0
+        elif len(self.train_accuracy) == 1:
+            return self.train_accuracy[0]
+        else:
+            return self.train_accuracy[-1] - self.train_accuracy[-2]
         

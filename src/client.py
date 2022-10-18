@@ -14,6 +14,11 @@ class Client:
                 logger=logger,
                 model=global_model)
         user2local_model[client_idx]= self.local_model
+        
+    def train_step(self, global_model, epoch):
+        _weight, loss = self.local_model.update_weights(
+            global_model, global_round=epoch)
+        return _weight, loss
 
 def get_local_model_fn(idx):
     if idx == "shap":

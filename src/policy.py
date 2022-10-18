@@ -36,12 +36,14 @@ def check_trade_success_or_not(selected_client_index, _task, free_client,update=
             free_client[client_idx] = True
         if update:
             _task.selected_client_idx = None
+            _task.init_select_clients()
         return False
     else:
         ### Successful trade
         if update:
             _task.selected_client_idx = selected_client_index
             # print("Clients {} are assined to task {}".format(selected_client_index, _task.task_id))
+            _task.init_select_clients()
         return True
 
 def my_select_clients(ask_table, client_feature_list, task_list, bid_table):
@@ -290,3 +292,32 @@ def even_select_clients(ask_table, client_feature_list, task_list, bid_table, up
                 reward += refer_bid / len(selected_client_index)
 
     return succ_cnt, reward
+
+def momentum_select_clients(num_of_client, task_list):
+    free_client = [True] * num_of_client
+    succ_cnt = 0
+    for task_idx, _ in enumerate(task_list):
+        _task = task_list[task_idx]
+
+        ### momemtum_based_grad_proj 是一个list，长度等于 总的client数量，挑出momemtum_based_grad_proj最小的num_users client
+        # 这里client_state 不需要传参了， 因为client_state在这个函数定义之前就已经定义了，函数内部可以直接访问client_state ok？
+        momemtum_based_grad_proj = _task.client_state.client2proj
+        assert isinstance(momemtum_based_grad_proj, list) or isinstance(momemtum_based_grad_proj, np.ndarray)
+        assert len(momemtum_based_grad_proj) == num_of_client
+
+        momemtum_based_grad_proj = np.array(momemtum_based_grad_proj)
+        sorted_client_idxs = momemtum_based_grad_proj.argsort()
+
+        ### Select clients
+        selected_client_index = []
+        for client_idx in sorted_client_idxs[::-1]:
+            if free_client[client_idx] :
+                # and buyer_give_more_money(client_idx, task_idx, ask_table, bid_table):
+                is_task_ready = select_one_client(client_idx, selected_client_index, free_client, _task)
+                if is_task_ready:
+                    break
+                
+        is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
+        if is_succ:
+            succ_cnt += _task.required_client_num
+    return succ_cnt, None
