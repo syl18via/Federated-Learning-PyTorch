@@ -4,7 +4,7 @@ import time
 import pickle
 import numpy as np
 from tqdm import tqdm
-from svfl import calculate_sv
+
 
 import torch
 from tensorboardX import SummaryWriter
@@ -14,9 +14,14 @@ from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
 from client import get_local_model_fn
-
+from svfl import calculate_sv
 
 PRINT_EVERY = 10
+
+def fed_avg(client2weights):
+    # function to merge the model updates into one model for evaluation, ex: FedAvg, FedProx
+    # global_weights = average_weights(list(client2weights.values()))
+    return average_weights(list(client2weights.values()))
 
 class Task:
     def __init__(self, args,
@@ -81,10 +86,12 @@ class Task:
         self.target_labels = target_labels
 
         self.init_test_model(args, train_dataset, logger, user_groups)
-        
+    
+        self.local_weights = []
+
     def train_one_round(self):
         
-        local_weights, local_losses = [], []
+        self.local_weights, local_losses = [], []
         self.global_model.train()
 
         ### NOTE: deepcopy must be used here, or global_weights_before would change according to the weights in global_model
@@ -93,11 +100,11 @@ class Task:
         for idx in self.selected_client_idx: 
             local_model = get_local_model_fn(idx)
             _weight, loss = local_model.update_weights(self.global_model, global_round=epoch)
-            local_weights.append(copy.deepcopy(_weight))
+            self.local_weights.append(copy.deepcopy(_weight))
             local_losses.append(copy.deepcopy(loss))
         
         ### Update global weights
-        global_weights = average_weights(local_weights)
+        global_weights = average_weights(self.local_weights)
         # Load global weights to the global model
         self.global_model.load_state_dict(global_weights)
 
@@ -172,5 +179,21 @@ class Task:
 
         self.log("Clients {} are selected.".format(self.selected_client_idx))
 
+    def shap(self):
+        client2weights = dict([(self.selected_client_idx[i], self.local_weights[i]) for i in range(len(self.selected_client_idx))])
+        print(f"Calculate shaple value for {len(self.selected_client_idx)} clients")
+        sv = calculate_sv(client2weights, self.evaluate_model, fed_avg)
+        return sv
 
     
+    def end_train( self, args, test_dataset, start_time):
+        # Test inference after completion of training
+        test_acc, test_loss = test_inference(args, self.global_model, test_dataset)
+
+        print(f' \n Task {self.task_id}: Results after {args.epochs} global rounds of training:')
+        print("|---- Avg Train Accuracy: {:.2f}%".format(100*self.train_accuracy[-1]))
+        print("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
+
+        print('Total Run Time: {0:0.4f}\n'.format(time.time()-start_time))
+
+        

@@ -21,6 +21,8 @@ from options import args_parser
 from update import LocalUpdate, test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
+import policy
+
 np.random.seed(1)
 class ClientState:
     ''' Store statistic information for all clients, which is used for client selection'''
@@ -107,12 +109,28 @@ if __name__ == '__main__':
             target_labels=util.sample_config(target_labels_space, task_id, use_random=False)
         )
     
+    ### Initialize the price_table and bid table
+    price_table = None
+    def init_price_table(price_table):
+        price_table = []
+        for client_idx in range(args.num_users):
+            init_price_list = []
+            for taks_idx in range(len(task_list)):
+                init_price_list.append(0)
+            price_table.append(init_price_list)
+        return price_table
     
+    price_table = init_price_table(price_table)
+    bid_table = np.zeros((args.num_users, len(task_list)))
+
     ############################### Main process of FL ##########################################
+    
     total_reward_list = []
     succ_cnt_list = []
     reward_sum=[]
+    
     for epoch in range(EPOCH_NUM):
+        
         for task in task_list:
             task.epoch = epoch
 
@@ -122,9 +140,59 @@ if __name__ == '__main__':
            
             for task in task_list:
                 task.train_one_round()
-            
+
 
         ### At the end of this epoch
+        shapely_value_table = [task.shap() for task in task_list]
+        ### Normalize using sigmoid
+        shapely_value_table = [
+            util.sigmoid(np.array(elem)) if len(elem) > 0 else elem 
+                for elem in shapely_value_table]
+        shapely_value_table = np.array(shapely_value_table)
+        print(shapely_value_table)
+
+        ### Update price table
+        for task_idx in range(len(task_list)):
+            if task_list[task_idx].selected_client_idx is None:
+                continue
+            selected_client_index = task_list[task_idx].selected_client_idx
+            for idx in range(len(selected_client_index)):
+                client_idx = selected_client_index[idx]
+                shapley_value = shapely_value_table[task_idx][idx]
+                shapely_value_scaled = shapley_value * len(selected_client_index) / args.num_users
+                # price_table[client_idx][task_idx] = ((epoch / (epoch + 1)) * price_table[client_idx][task_idx] + (1 / (epoch + 1)) * shapely_value_scaled) 
+                price_table[client_idx][task_idx] = shapely_value_scaled 
+        
+        total_cost = 0
+        bid_list = [task.totoal_loss_delta * task.bid_per_loss_delta for task in task_list]
+        total_bid = sum(bid_list)
+        cost_list=[]
+        for client_idx in range(args.num_users):
+            # cost_list.append(random.randint(1,10)/10)
+            cost_list.append(0)
+        
+        idlecost_list = []
+        for client_idx in range(args.num_users):
+            idlecost_list.append(0)
+
+        for task in task_list:
+            if task.selected_client_idx is None:
+                continue
+            for client_idx in task.selected_client_idx :
+                total_cost += cost_list[client_idx]
+
+        assert price_table is not None
+    
+        ### Update bid table
+        for task_idx in range(len(task_list)):
+            if task_list[task_idx].selected_client_idx is None:
+                continue
+            selected_client_index = task_list[task_idx].selected_client_idx
+            for idx in range(len(selected_client_index)):
+                client_idx = selected_client_index[idx]
+                shapley_value = shapely_value_table[task_idx][idx]
+                bid_table[client_idx][task_idx] = shapley_value * bid_list[task_idx]
+
         ### At the first epoch, calculate the Feedback and update clients for each task
         
         
@@ -132,12 +200,37 @@ if __name__ == '__main__':
         ### Update price table    
 
     
-        ### Update bid table
+        
 
-        ###select clients for all tasks 
+        ###select clients for all tasks
+        free_client = [True] * args.num_users
+
+        if args.policy == "random":
+            succ_cnt, reward = policy.random_select_clients(args.num_users, task_list)
+        elif args.policy == "momentum":
+            if use_all_users == True :
+                idxs_users = momemtum_based(args.num_users)
+            else:
+                idxs_users = momemtum_based(m)
+        elif args.policy == "shap":
+            if use_all_users == True :
+                idxs_users = shap_based(args.num_users)
+            else:
+                idxs_users = shap_based(m)
+        elif args.policy == "debug":
+            idxs_users = np.array(list(range(args.num_users)))[:m]
+        else:
+            raise ValueError(f"Invalid policy {args.policy}")
+
+
+        
+
+
+
               
         for task in task_list:
             task.end_of_epoch()
+
 
         ### caclulate reward
        
@@ -156,10 +249,6 @@ if __name__ == '__main__':
 
     # Training
 
-    val_acc_list, net_list = [], []
-    cv_loss, cv_acc = [], []
-    
-    val_loss_pre, counter = 0, 0
 
     import math
     client_state = ClientState(args.num_users)
@@ -211,10 +300,7 @@ if __name__ == '__main__':
    
 
 
-    def fed_avg(client2weights):
-        # function to merge the model updates into one model for evaluation, ex: FedAvg, FedProx
-        # global_weights = average_weights(list(client2weights.values()))
-        return average_weights(list(client2weights.values()))
+    
     
     for epoch in (range(args.epochs)): 
 
@@ -236,25 +322,9 @@ if __name__ == '__main__':
                 client_state.sv=sv
                 idxs_users = update_client_idx(use_all_users=False)
             
-    # Test inference after completion of training
-    test_acc, test_loss = test_inference(args, global_model, test_dataset)
 
-    print(f' \n Results after {args.epochs} global rounds of training:')
-    print("|---- Avg Train Accuracy: {:.2f}%".format(100*train_accuracy[-1]))
-    print("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
-
-    # Saving the objects train_loss and train_accuracy:
-    save_dir = ".workspace/save/objects"
-    os.makedirs(save_dir, exist_ok=True)
-    file_name = os.path.join(save_dir, '{}_{}_{}_C[{}]_iid[{}]_E[{}]_B[{}].pkl'.\
-        format(args.dataset, args.model, args.epochs, args.frac, args.iid,
-               args.local_ep, args.local_bs))
-
-    with open(file_name, 'wb') as f:
-        pickle.dump([train_loss, train_accuracy], f)
-
-    print('\n Total Run Time: {0:0.4f}'.format(time.time()-start_time))
-
+    for task in task_list:
+        task.end_train( args, test_dataset, start_time)
     # PLOTTING (optional)
     # import matplotlib
     # import matplotlib.pyplot as plt
