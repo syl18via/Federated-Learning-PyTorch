@@ -2,25 +2,20 @@
 # -*- coding: utf-8 -*-
 # Python version: 3.6
 
-
-from asyncio import tasks
 import os
-import copy
 import time
-import pickle
 import numpy as np
-from tqdm import tqdm
-from svfl import calculate_sv
+
 from task import Task
 import util
 
 import torch
 from tensorboardX import SummaryWriter
 
+from svfl import calculate_sv
 from options import args_parser
 from update import LocalUpdate, test_inference
-from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
-from utils import get_dataset, average_weights, exp_details
+from utils import exp_details
 import policy
 
 np.random.seed(1)
@@ -46,9 +41,6 @@ if __name__ == '__main__':
     args = args_parser()
     exp_details(args)
     
-
-
-
     ############################### Task ###########################################
     ### Initialize the global model parameters for both tasks
     ### At the first epoch, both tasks select all clients
@@ -63,9 +55,6 @@ if __name__ == '__main__':
         # assert task.target_labels is not None, target_labels
         task_list.append(task)
 
-        ### Init the loss
-        task.prev_loss = task.evaluate_model()
-    
     for task_id in range(TASK_NUM):
         create_task(
             selected_client_idx=list(range(args.num_users)),
@@ -74,6 +63,7 @@ if __name__ == '__main__':
             target_labels=util.sample_config(target_labels_space, task_id, use_random=False)
         )
     
+    ############################### Predefined structure for shap ###########################################
     if args.policy == "shap":
         cost_list=[]
         for client_idx in range(args.num_users):
@@ -101,23 +91,17 @@ if __name__ == '__main__':
         bid_table = np.zeros((args.num_users, len(task_list)))
 
     ############################### Main process of FL ##########################################
-    
     total_reward_list = []
     succ_cnt_list = []
     reward_sum=[]
     
     for epoch in range(EPOCH_NUM):
-        
         for task in task_list:
             task.epoch = epoch
-
         for round_idx in range(1):
             ### Train the model parameters distributedly
-            #   return a list of model parameters
-           
             for task in task_list:
                 task.train_one_round()
-
 
         ### At the end of this epoch
         if args.policy == "shap":
@@ -190,100 +174,28 @@ if __name__ == '__main__':
         else:
             raise ValueError(f"Invalid policy {args.policy}")
 
-              
         for task in task_list:
             task.end_of_epoch()
 
-
-        ### caclulate reward
-       
     raise
-        ### Count successful matching
 
-    
-
-    # copy weights
-    global_weights = global_model.state_dict()
-
-    # Training
-
-
-    import math
-    client_state = ClientState(args.num_users)
-
-    # client 选择函数，返回idxs_users，表示被选到的client的ID， 对的，
-    # 然后后面变复杂之后，这里的选择函数的输入参数会更加复杂，要结合我们统计的momentum-based gradient projection 选择
-    def momemtum_based(num_users):
-        # 这里client_state 不需要传参了， 因为client_state在这个函数定义之前就已经定义了，函数内部可以直接访问client_state ok？
-        momemtum_based_grad_proj = client_state.client2proj
-        ''' momemtum_based_grad_proj 是一个list，长度等于 总的client数量，挑出momemtum_based_grad_proj最小的num_users client
-        '''
-        assert isinstance(momemtum_based_grad_proj, list) or isinstance(momemtum_based_grad_proj, np.ndarray)
-        assert len(momemtum_based_grad_proj) == args.num_users
-        momemtum_based_grad_proj = np.array(momemtum_based_grad_proj)
-        return momemtum_based_grad_proj.argsort()[:num_users]
-
-
-    def shap_based(num_users):
+    ### Previous method to perform shap-based client selection
+    # def shap_based(num_users):
         
-        ''' shap_based_grad_proj 是一个list，长度等于 总的client数量，挑出shap_based_grad_proj最大的num_users client
-        '''
-        sv = client_state.sv
-        shap_based_grad_proj = np.array(sv)
-        return shap_based_grad_proj.argsort()[-num_users:]
-    
-    def update_client_idx(use_all_users):
-        m = max(int(args.frac * args.num_users), 1)
-        if args.policy == "random":
-            idxs_users = np.random.choice(range(args.num_users), m, replace=False) ### 这句话在选择client， 诶但是他已经实现了，每一个global step update 一次
-        elif args.policy == "momentum":
-            if use_all_users == True :
-                idxs_users = momemtum_based(args.num_users)
-            else:
-                idxs_users = momemtum_based(m)
-        elif args.policy == "shap":
-            if use_all_users == True :
-                idxs_users = shap_based(args.num_users)
-            else:
-                idxs_users = shap_based(m)
-        elif args.policy == "debug":
-            idxs_users = np.array(list(range(args.num_users)))[:m]
-        else:
-            raise ValueError(f"Invalid policy {args.policy}")
-        return idxs_users
-    
-    idxs_users = update_client_idx(use_all_users=True)
-    print(f"Initialized clident IDs: {idxs_users}")
+    #     ''' shap_based_grad_proj 是一个list，长度等于 总的client数量，挑出shap_based_grad_proj最大的num_users client
+    #     '''
+    #     sv = client_state.sv
+    #     shap_based_grad_proj = np.array(sv)
+    #     return shap_based_grad_proj.argsort()[-num_users:]
 
-    
-   
-
-
-    
-    
-    for epoch in (range(args.epochs)): 
-
-
-
-        xxx
-
-
-        ### update clients based on different policies
-        if args.policy == "momentum":
-            # print(f'global_grad:{global_grad}')
-            client_state.update_proj_list(idxs_users, global_weights, global_weights_before, local_weights)
-            idxs_users = update_client_idx(use_all_users=False)
-        elif args.policy == "shap":
-            if epoch == 0:
-                client2weights = dict([(idxs_users[i], local_weights[i]) for i in range(len(idxs_users))])
-                print(f"Calculate shaple value for {len(idxs_users)} clients")
-                sv = calculate_sv(client2weights, evaluate_model, fed_avg)
-                client_state.sv=sv
-                idxs_users = update_client_idx(use_all_users=False)
+    # elif args.policy == "shap":
+    #     if epoch == 0:
+    #         client2weights = dict([(idxs_users[i], local_weights[i]) for i in range(len(idxs_users))])
+    #         print(f"Calculate shaple value for {len(idxs_users)} clients")
+    #         sv = calculate_sv(client2weights, evaluate_model, fed_avg)
+    #         client_state.sv=sv
+    #         idxs_users = update_client_idx(use_all_users=False)
             
-
-    for task in task_list:
-        task.end_train( args, test_dataset, start_time)
     # PLOTTING (optional)
     # import matplotlib
     # import matplotlib.pyplot as plt
