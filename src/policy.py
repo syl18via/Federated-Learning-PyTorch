@@ -213,8 +213,7 @@ def mcafee_select_clients(ask_table, client_feature_list, task_list, bid_table, 
     #     if not trade_succed:
     #         raise ValueError("Fail trading")
 
-def simple_select_clients(ask_table, client_feature_list, task_list, bid_table,update= True ):
-    num_of_client = len(client_feature_list)
+def simple_select_clients(num_of_client, task_list, reverse=False):
     free_client = [True] * num_of_client
     succ_cnt = 0
 
@@ -223,18 +222,15 @@ def simple_select_clients(ask_table, client_feature_list, task_list, bid_table,u
 
         ### Select clients
         selected_client_index = []
-        clients_candidates = list(range(num_of_client))
-        selected_client_index = []
-        for client_idx in range(num_of_client):
-
-                
-            
-            
-            if free_client[client_idx] and buyer_give_more_money(client_idx, task_idx, ask_table, bid_table):
+        iterator = range(num_of_client)
+        if reverse:
+            iterator = reversed(iterator)
+        for client_idx in iterator:
+            if free_client[client_idx]:
+                # and buyer_give_more_money(client_idx, task_idx, ask_table, bid_table):
                 is_task_ready = select_one_client(client_idx, selected_client_index, free_client, _task)
                 if is_task_ready:
                     break
-        
         is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
         if is_succ:
             succ_cnt += _task.required_client_num

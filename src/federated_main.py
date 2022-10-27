@@ -5,6 +5,7 @@
 import os
 import time
 import numpy as np
+import random
 
 from task import Task
 import util
@@ -18,13 +19,15 @@ from utils import exp_details
 import policy
 
 np.random.seed(1)
+torch.manual_seed(0)
+random.seed(0)
 
 ### Experiment Configs
 MIX_RATIO = 0.8
 SIMULATE = False
-EPOCH_NUM = 100
+EPOCH_NUM = 200
 TRIAL_NUM = 1
-TASK_NUM = 2
+TASK_NUM = 1
 
 bid_per_loss_delta_space = [1]
 required_client_num_space = [3]
@@ -155,6 +158,10 @@ if __name__ == '__main__':
             #     idxs_users = momemtum_based(args.num_users)
             # else:
             #     idxs_users = momemtum_based(m)
+        elif args.policy == "simple":
+            succ_cnt, reward = policy.simple_select_clients(args.num_users, task_list)
+        elif args.policy == "simple_reverse":
+            succ_cnt, reward = policy.simple_select_clients(args.num_users, task_list, reverse=True)
         elif args.policy == "shap":
             ask_table = util.calcualte_client_value(price_table, client_feature_list)
             norm_ask_table = util.normalize_data(ask_table)
