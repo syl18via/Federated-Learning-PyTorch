@@ -167,7 +167,7 @@ class Task:
         dataidx = np.array([np.array(list(self.user_groups[i])) for i in range(args.num_users)]).flatten()
         self.test_model = LocalUpdate(
             args=args,
-            dataset=self.train_dataset,
+            dataset=self.test_dataset,
             idxs=dataidx,
             logger=logger,
             model=self.global_model)

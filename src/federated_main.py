@@ -29,7 +29,7 @@ TASK_NUM = 2
 
 bid_per_loss_delta_space = [1]
 required_client_num_space = [3]
-target_labels_space = [[0,1,2,3,4,6,7,8,9]]
+target_labels_space = [[0,1],[5,6]]
 
 if __name__ == '__main__':
     start_time = time.time()
