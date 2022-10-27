@@ -160,15 +160,13 @@ class Task:
             self.train_accuracy.append(accu)
             # print(f' \nlist acc {list_acc} ')
             
-            print(f'Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {np.mean(np.array(self.train_loss)):.3f}'
+            print(f'[Task {self.task_id}] Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {np.mean(np.array(self.train_loss)):.3f}'
              f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {self.selected_client_idx}')
     
     def init_test_model(self, args, logger):
         self.test_model = Client(
             args=args,
             dataset=self.test_dataset,
-            user_groups=self.user_groups,
-            client_idx=None,
             logger=logger,
             global_model=self.global_model,
             shuffle=False)
@@ -243,8 +241,8 @@ class Task:
             return
         for client_idx in self.selected_client_idx:
             self.selected_clients.append(
-                Client(self.args, self.train_dataset, self.user_groups,
-                    client_idx, self.logger, self.global_model))
+                Client(self.args, self.user_groups[client_idx],
+                    self.logger, self.global_model))
 
     @property
     def delta_accu(self):

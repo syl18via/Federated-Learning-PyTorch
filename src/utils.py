@@ -8,6 +8,23 @@ from torchvision import datasets, transforms
 from sampling import mnist_iid, mnist_iid_noniid, mnist_noniid, mnist_noniid_unequal
 from sampling import cifar_iid, cifar_noniid
 
+from torch.utils.data import Dataset
+
+class DatasetSplit(Dataset):
+    """An abstract Dataset class wrapped around Pytorch Dataset class.
+    """
+
+    def __init__(self, dataset, idxs):
+        self.dataset = dataset
+        self.idxs = [int(i) for i in idxs]
+
+    def __len__(self):
+        return len(self.idxs)
+
+    def __getitem__(self, item):
+        image, label = self.dataset[self.idxs[item]]
+        return torch.tensor(image), torch.tensor(label)
+
 
 def get_dataset(args):
     """ Returns train and test datasets and a user group which is a dict where
@@ -58,7 +75,9 @@ def get_dataset(args):
                                       transform=apply_transform)
 
         # sample training data amongst users
-        if args.iid:
+        if args.halfiid:
+            user_groups = mnist_iid_noniid(train_dataset,args.num_users)
+        elif args.iid:
             # Sample IID user data from Mnist
             user_groups = mnist_iid(train_dataset, args.num_users)
         else:
@@ -66,11 +85,23 @@ def get_dataset(args):
             if args.unequal:
                 # Chose uneuqal splits for every user
                 user_groups = mnist_noniid_unequal(train_dataset, args.num_users)
-            elif args.halfiid:
-                user_groups = mnist_iid_noniid(train_dataset,args.num_users)
             else:
                 # Chose euqal splits for every user
                 user_groups = mnist_noniid(train_dataset, args.num_users)
+
+    def check_dist(name, _dataset):
+        _, lables = zip(*list((_dataset)))
+        lables = [int(x) for x in lables]
+        print(f"{name}, distribution: {Counter(lables)}")
+
+    from collections import Counter
+    for client_id in user_groups.keys():
+        sample_idxs = user_groups[client_id]
+        _dataset = DatasetSplit(train_dataset, list(sample_idxs))
+        check_dist(f"Client {client_id}", _dataset)
+        user_groups[client_id] = _dataset
+
+    check_dist(f"Test", test_dataset)
 
     return train_dataset, test_dataset, user_groups
 

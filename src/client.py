@@ -2,23 +2,9 @@ import numpy as np
 import copy
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, Dataset
 
-class DatasetSplit(Dataset):
-    """An abstract Dataset class wrapped around Pytorch Dataset class.
-    """
-
-    def __init__(self, dataset, idxs):
-        self.dataset = dataset
-        self.idxs = [int(i) for i in idxs]
-
-    def __len__(self):
-        return len(self.idxs)
-
-    def __getitem__(self, item):
-        image, label = self.dataset[self.idxs[item]]
-        return torch.tensor(image), torch.tensor(label)
-
+from utils import DatasetSplit
+from torch.utils.data import DataLoader
 
 def test_inference(use_gpu, model, test_dataset):
     """ Returns the test accuracy and loss.
@@ -49,16 +35,14 @@ def test_inference(use_gpu, model, test_dataset):
     return accuracy, loss
 
 class Client:
-    def __init__(self, args, dataset, user_groups,
-            client_idx, logger, global_model, 
+    def __init__(self, args, dataset, logger, global_model, 
             split=False, shuffle=True):
         self.args = args
         self.logger = logger
         self.dataset = dataset
 
         if split:
-            self.trainloader, self.validloader, self.testloader = self.train_val_test(
-                dataset, list(user_groups[client_idx]))
+            self.trainloader, self.validloader, self.testloader = self.train_val_test(dataset)
         else:
             self.trainloader = DataLoader(dataset, batch_size=self.args.local_bs, shuffle=shuffle)
             self.validloader = self.testloader = None
@@ -84,12 +68,13 @@ class Client:
             global_model, global_round=epoch)
         return _weight, loss
     
-    def train_val_test(self, dataset, idxs):
+    def train_val_test(self, dataset):
         """
         Returns train, validation and test dataloaders for a given dataset
         and user indexes.
         """
         # split indexes for train, validation, and test (80, 10, 10)
+        idxs = np.arange(len(dataset))
         idxs_train = idxs[:int(0.8*len(idxs))]
         idxs_val = idxs[int(0.8*len(idxs)):int(0.9*len(idxs))]
         idxs_test = idxs[int(0.9*len(idxs)):]

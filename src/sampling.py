@@ -24,7 +24,7 @@ def mnist_iid(dataset, num_users):
     return dict_users
 
 
-def mnist_noniid(dataset, num_users):
+def mnist_noniid_v1(dataset, num_users):
     """
     Sample non-I.I.D client data from MNIST dataset
     :param dataset:
@@ -51,6 +51,54 @@ def mnist_noniid(dataset, num_users):
             dict_users[i] = np.concatenate(
                 (dict_users[i], idxs[rand*num_imgs:(rand+1)*num_imgs]), axis=0)
     return dict_users
+
+def mnist_noniid_v2(dataset, num_users):
+    """
+    Sample non-I.I.D client data from MNIST dataset
+    :param dataset:
+    :param num_users:
+    :return:
+    """
+    # 60,000 training imgs -->  200 imgs/shard X 300 shards
+    dict_users = {i: np.array([]) for i in range(num_users)}
+    # idxs = np.arange(len(dataset))
+    labels = dataset.train_labels.numpy()
+
+    CLASS_NUM = 10
+    MAJOR2MINOR_SAMPLE_RATIO = 99
+    MAJOR_CLASS_NUM = 2
+    total_sample_num = len(labels)
+    sample_num_per_client = total_sample_num // num_users
+    sample_num_per_major_class = int(MAJOR2MINOR_SAMPLE_RATIO * sample_num_per_client / (MAJOR2MINOR_SAMPLE_RATIO * MAJOR_CLASS_NUM + 1 * (CLASS_NUM - MAJOR_CLASS_NUM)))
+    sample_num_per_minor_class = int(1 * sample_num_per_client / (MAJOR2MINOR_SAMPLE_RATIO * MAJOR_CLASS_NUM + 1 * (CLASS_NUM - MAJOR_CLASS_NUM)))
+
+    # Group labels
+    label2idxs = []
+    for digit in range(CLASS_NUM):
+        indexs = [i for i, label in enumerate(labels) if label == digit]
+        # indexs = indexs[0:5421]
+        label2idxs.append(indexs)
+
+    ### Construct an imbalanced dataset
+    ### For each client, randomly select 2 labels as the major class
+    for i in range(num_users):
+        major_class = np.random.choice(CLASS_NUM, MAJOR_CLASS_NUM, replace=False)
+        major_class = [0, 1]
+        for _class in range(CLASS_NUM):
+            sample_idxs_of_this_class = label2idxs[_class]
+            if _class in major_class:
+                dict_users[i] = np.concatenate((dict_users[i],
+                    np.random.choice(sample_idxs_of_this_class, sample_num_per_major_class, replace=False)), axis=0)
+            else:
+                ### In minor class
+                dict_users[i] = np.concatenate((dict_users[i],
+                    np.random.choice(sample_idxs_of_this_class, sample_num_per_minor_class, replace=False)), axis=0)
+
+    return dict_users
+
+def mnist_noniid(dataset, num_users):
+    # return mnist_noniid_v1(dataset, num_users)
+    return mnist_noniid_v2(dataset, num_users)
 
 def mnist_iid_noniid(dataset, num_users):
     dict_iid = mnist_iid(dataset, num_users)
