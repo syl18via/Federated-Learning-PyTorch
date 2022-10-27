@@ -14,7 +14,6 @@ from tensorboardX import SummaryWriter
 
 from svfl import calculate_sv
 from options import args_parser
-from update import LocalUpdate, test_inference
 from utils import exp_details
 import policy
 

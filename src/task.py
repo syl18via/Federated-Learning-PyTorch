@@ -11,7 +11,7 @@ import torch
 from tensorboardX import SummaryWriter
 
 from options import args_parser
-from update import LocalUpdate, test_inference
+from client import test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import get_dataset, average_weights, exp_details
 from client import Client
@@ -164,13 +164,14 @@ class Task:
              f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {self.selected_client_idx}')
     
     def init_test_model(self, args, logger):
-        dataidx = np.array([np.array(list(self.user_groups[i])) for i in range(args.num_users)]).flatten()
-        self.test_model = LocalUpdate(
+        self.test_model = Client(
             args=args,
             dataset=self.test_dataset,
-            idxs=dataidx,
+            user_groups=self.user_groups,
+            client_idx=None,
             logger=logger,
-            model=self.global_model)
+            global_model=self.global_model,
+            shuffle=False)
 
     def evaluate_model(self, weights=None):
         # function to compute evaluation metric, ex: accuracy, precision
@@ -178,7 +179,7 @@ class Task:
             self.test_model.load_weights(self.global_model.state_dict())
         else:
             self.test_model.load_weights(weights)
-        accu, losss = self.test_model.inference(self.test_model.model)
+        accu, losss = self.test_model.inference(self.test_model.dataset)
         return accu
    
     def log(self, *args, **kwargs):
@@ -228,7 +229,7 @@ class Task:
 
     def end_train( self, args, test_dataset, start_time):
         # Test inference after completion of training
-        test_acc, test_loss = test_inference(args, self.global_model, test_dataset)
+        test_acc, test_loss = test_inference(args.gpu is not None, self.global_model, test_dataset)
 
         print(f' \n Task {self.task_id}: Results after {args.epochs} global rounds of training:')
         print("|---- Avg Train Accuracy: {:.2f}%".format(100*self.train_accuracy[-1]))

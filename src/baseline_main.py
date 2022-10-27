@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 
 from utils import get_dataset
 from options import args_parser
-from update import test_inference
+from client import test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 
 
@@ -93,6 +93,6 @@ if __name__ == '__main__':
                                                  args.epochs))
 
     # testing
-    test_acc, test_loss = test_inference(args, global_model, test_dataset)
+    test_acc, test_loss = test_inference(args.gpu is not None, global_model, test_dataset)
     print('Test on', len(test_dataset), 'samples')
     print("Test Accuracy: {:.2f}%".format(100*test_acc))
