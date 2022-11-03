@@ -62,17 +62,19 @@ def fed_avg(client2weights):
 
 class Task:
     def __init__(self, args,
-            logger,task_id, selected_client_idx,
+            logger,train_dataset, test_dataset, user_groups,
+            task_id, selected_client_idx,
             required_client_num=None,
             bid_per_loss_delta=None,
-            target_labels=None):
+            target_labels=None
+            ):
 
         if args.gpu:
             torch.cuda.set_device(args.gpu)
         device = 'cuda' if args.gpu else 'cpu'
 
         # load dataset and user groups
-        self.train_dataset, self.test_dataset, self.user_groups = get_dataset(args)
+        self.train_dataset, self.test_dataset, self.user_groups = train_dataset, test_dataset, user_groups
 
         # BUILD MODEL
         if args.model == 'cnn':
@@ -110,6 +112,7 @@ class Task:
         self.required_client_num = required_client_num
         self.bid_per_loss_delta = bid_per_loss_delta
         self.target_labels = target_labels
+        print(target_labels)
 
         self.total_loss_delta = None
 
@@ -169,6 +172,7 @@ class Task:
             dataset=self.test_dataset,
             logger=logger,
             global_model=self.global_model,
+            target_label= self.target_labels,
             shuffle=False)
 
     def evaluate_model(self, weights=None):
@@ -242,7 +246,7 @@ class Task:
         for client_idx in self.selected_client_idx:
             self.selected_clients.append(
                 Client(self.args, self.user_groups[client_idx],
-                    self.logger, self.global_model))
+                    self.logger, self.global_model, target_label=self.target_labels))
 
     @property
     def delta_accu(self):

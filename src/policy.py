@@ -217,23 +217,30 @@ def simple_select_clients(num_of_client, task_list, reverse=False):
     free_client = [True] * num_of_client
     succ_cnt = 0
 
-    for task_idx, _ in enumerate(task_list):
-        _task = task_list[task_idx]
+    task_list[0].selected_client_idx = [2,7]
+    task_list[1].selected_client_idx = [4,9]
+    # print("Clients {} are assined to task {}".format(selected_client_index, _task.task_id))
+    task_list[0].init_select_clients()
+    task_list[1].init_select_clients()
 
-        ### Select clients
-        selected_client_index = []
-        iterator = range(num_of_client)
-        if reverse:
-            iterator = reversed(iterator)
-        for client_idx in iterator:
-            if free_client[client_idx]:
-                # and buyer_give_more_money(client_idx, task_idx, ask_table, bid_table):
-                is_task_ready = select_one_client(client_idx, selected_client_index, free_client, _task)
-                if is_task_ready:
-                    break
-        is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
-        if is_succ:
-            succ_cnt += _task.required_client_num
+
+    # for task_idx, _ in enumerate(task_list):
+    #     _task = task_list[task_idx]
+
+    #     ### Select clients
+    #     selected_client_index = []
+    #     iterator = range(num_of_client)
+    #     if reverse:
+    #         iterator = reversed(iterator)
+    #     for client_idx in iterator:
+    #         if free_client[client_idx]:
+    #             # and buyer_give_more_money(client_idx, task_idx, ask_table, bid_table):
+    #             is_task_ready = select_one_client(client_idx, selected_client_index, free_client, _task)
+    #             if is_task_ready:
+    #                 break
+    #     is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
+    #     if is_succ:
+    #         succ_cnt += _task.required_client_num
     return succ_cnt, None
 
 def random_select_clients(num_of_client, task_list):

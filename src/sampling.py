@@ -83,7 +83,7 @@ def mnist_noniid_v2(dataset, num_users):
     ### For each client, randomly select 2 labels as the major class
     for i in range(num_users):
         major_class = np.random.choice(CLASS_NUM, MAJOR_CLASS_NUM, replace=False)
-        major_class = [0, 1]
+        # major_class = [0, 1]
         for _class in range(CLASS_NUM):
             sample_idxs_of_this_class = label2idxs[_class]
             if _class in major_class:

@@ -35,11 +35,19 @@ def test_inference(use_gpu, model, test_dataset):
     return accuracy, loss
 
 class Client:
-    def __init__(self, args, dataset, logger, global_model, 
+    def __init__(self, args, dataset, logger, global_model, target_label = None,
             split=False, shuffle=True):
         self.args = args
         self.logger = logger
-        self.dataset = dataset
+        if target_label is None:
+            self.dataset = dataset
+        else:
+            target_idx = []
+            for i in range(len(dataset)):
+                tenser_x,tenser_y = dataset[i] 
+                if tenser_y in target_label:
+                    target_idx.append(i)
+            self.dataset = DatasetSplit(dataset,target_idx)
 
         if split:
             self.trainloader, self.validloader, self.testloader = self.train_val_test(dataset)
@@ -51,7 +59,7 @@ class Client:
         self.device = 'cuda' if args.gpu else 'cpu'
         # Default criterion set to NLL loss function
         self.criterion = nn.NLLLoss().to(self.device)
-        
+        self.target_labels = target_label
         self.model = None
         self.load_weights(global_model)
         self.local_step = 0
@@ -114,7 +122,9 @@ class Client:
                 images, labels = next(self.trainloader_iter)
                 self.local_step = 0
             # for batch_idx, (images, labels) in enumerate(self.trainloader):
+            # print(labels,self.target_labels)
             images, labels = images.to(self.device), labels.to(self.device)
+
 
             self.model.zero_grad()
             log_probs = self.model(images)
