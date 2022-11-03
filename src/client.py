@@ -2,9 +2,11 @@ import numpy as np
 import copy
 import torch
 from torch import nn
+from collections import Counter
 
 from utils import DatasetSplit
 from torch.utils.data import DataLoader
+from sampling import get_dataset
 
 def test_inference(use_gpu, model, test_dataset):
     """ Returns the test accuracy and loss.
@@ -34,25 +36,61 @@ def test_inference(use_gpu, model, test_dataset):
     accuracy = correct/total
     return accuracy, loss
 
-class Client:
-    def __init__(self, args, dataset, logger, global_model, target_label = None,
+class Client(DatasetSplit):
+    def __init__(self, id, dataset, data_idxs):
+        self.id = id
+        self.dataset = dataset
+        self.idxs = [int(i) for i in data_idxs]
+        
+        ### Group local data by labels
+        self.lable2data_idxs = {}
+        for idx_of_split in self.idxs:
+            _, label = self.dataset[idx_of_split]
+            if label not in self.lable2data_idxs:
+                self.lable2data_idxs[label] = []
+            self.lable2data_idxs[label].append(idx_of_split)
+
+
+def check_dist(name, _dataset):
+    _, lables = zip(*list((_dataset)))
+    lables = [int(x) for x in lables]
+    print(f"{name}, distribution: {Counter(lables)}")
+
+def get_clients(args):
+    train_dataset, test_dataset, user_groups = get_dataset(args)
+    clients = {}
+    for client_id in user_groups.keys():
+        sample_idxs = user_groups[client_id]
+        _client = Client(client_id, train_dataset, list(sample_idxs))
+        check_dist(f"Client {client_id}", _client)
+        clients[client_id] = _client
+
+    sample_idxs = range(len(test_dataset))
+    test_client = Client(-1, test_dataset, list(sample_idxs))
+    check_dist(f"Test", test_client)
+
+    return train_dataset, test_client, clients
+
+class VirtualClient:
+    def __init__(self, args, dataset, logger, global_model, target_label=None,
             split=False, shuffle=True):
         self.args = args
         self.logger = logger
+
+        # target_label = None
         if target_label is None:
             self.dataset = dataset
         else:
-            target_idx = []
-            for i in range(len(dataset)):
-                tenser_x,tenser_y = dataset[i] 
-                if tenser_y in target_label:
-                    target_idx.append(i)
-            self.dataset = DatasetSplit(dataset,target_idx)
+            assert isinstance(dataset, Client), type(dataset)
+            target_idxs = []
+            for _label in target_label:
+                target_idxs += dataset.lable2data_idxs[_label]
+            self.dataset = DatasetSplit(dataset.dataset, target_idxs)
 
         if split:
-            self.trainloader, self.validloader, self.testloader = self.train_val_test(dataset)
+            self.trainloader, self.validloader, self.testloader = self.train_val_test(self.dataset)
         else:
-            self.trainloader = DataLoader(dataset, batch_size=self.args.local_bs, shuffle=shuffle)
+            self.trainloader = DataLoader(self.dataset, batch_size=self.args.local_bs, shuffle=shuffle)
             self.validloader = self.testloader = None
 
         self.trainloader_iter = iter(self.trainloader)
@@ -122,7 +160,7 @@ class Client:
                 images, labels = next(self.trainloader_iter)
                 self.local_step = 0
             # for batch_idx, (images, labels) in enumerate(self.trainloader):
-            # print(labels,self.target_labels)
+            # print(labels, self.target_labels)
             images, labels = images.to(self.device), labels.to(self.device)
 
 

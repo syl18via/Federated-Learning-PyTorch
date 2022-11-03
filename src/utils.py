@@ -4,9 +4,7 @@
 
 import copy
 import torch
-from torchvision import datasets, transforms
-from sampling import mnist_iid, mnist_iid_noniid, mnist_noniid, mnist_noniid_unequal
-from sampling import cifar_iid, cifar_noniid
+import numpy as np
 
 from torch.utils.data import Dataset
 
@@ -25,86 +23,28 @@ class DatasetSplit(Dataset):
         image, label = self.dataset[self.idxs[item]]
         return torch.tensor(image), torch.tensor(label)
 
+# class DatasetLabelSpecific(DatasetSplit):
+#     """An abstract Dataset class wrapped around Pytorch Dataset class.
+#     """
 
-def get_dataset(args):
-    """ Returns train and test datasets and a user group which is a dict where
-    the keys are the user index and the values are the corresponding data for
-    each of those users.
-    """
-
-    if args.dataset == 'cifar':
-        raise
-        data_dir = '../data/cifar/'
-        apply_transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-        train_dataset = datasets.CIFAR10(data_dir, train=True, download=True,
-                                       transform=apply_transform)
-
-        test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
-                                      transform=apply_transform)
-                                      
-
-        # sample training data amongst users
-        if args.iid:
-            # Sample IID user data from Mnist
-            user_groups = cifar_iid(train_dataset, args.num_users)
-        else:
-            # Sample Non-IID user data from Mnist
-            if args.unequal:
-                # Chose uneuqal splits for every user
-                raise NotImplementedError()
-            else:
-                # Chose euqal splits for every user
-                user_groups = cifar_noniid(train_dataset, args.num_users)
-
-    elif args.dataset == 'mnist' or 'fmnist':
-        if args.dataset == 'mnist':
-            data_dir = '../data/mnist/'
-        else:
-            data_dir = '../data/fmnist/'
-
-        apply_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,))])
-
-        train_dataset = datasets.MNIST(data_dir, train=True, download=True,
-                                       transform=apply_transform)
-
-        test_dataset = datasets.MNIST(data_dir, train=False, download=True,
-                                      transform=apply_transform)
-
-        # sample training data amongst users
-        if args.halfiid:
-            user_groups = mnist_iid_noniid(train_dataset,args.num_users)
-        elif args.iid:
-            # Sample IID user data from Mnist
-            user_groups = mnist_iid(train_dataset, args.num_users)
-        else:
-            # Sample Non-IID user data from Mnist
-            if args.unequal:
-                # Chose uneuqal splits for every user
-                user_groups = mnist_noniid_unequal(train_dataset, args.num_users)
-            else:
-                # Chose euqal splits for every user
-                user_groups = mnist_noniid(train_dataset, args.num_users)
-
-    def check_dist(name, _dataset):
-        _, lables = zip(*list((_dataset)))
-        lables = [int(x) for x in lables]
-        print(f"{name}, distribution: {Counter(lables)}")
-
-    from collections import Counter
-    for client_id in user_groups.keys():
-        sample_idxs = user_groups[client_id]
-        _dataset = DatasetSplit(train_dataset, list(sample_idxs))
-        check_dist(f"Client {client_id}", _dataset)
-        user_groups[client_id] = _dataset
-
-    check_dist(f"Test", test_dataset)
-
-    return train_dataset, test_dataset, user_groups
+#     def __init__(self, dataset, target_labels):
+#         self.target_labels = target_labels
+#         if isinstance(dataset, DatasetSplit):
+#             self.dataset = dataset.dataset
+#             idx_of_split = []
+#             for i in range(len(dataset)):
+#                 _, tenser_y = dataset[i]
+#                 if tenser_y in target_labels:
+#                     idx_of_split.append(i)
+#             self.idxs = np.array(dataset.idxs)[idx_of_split]
+#         else:
+#             self.dataset = dataset
+#             target_idx = []
+#             for i in range(len(dataset)):
+#                 _, tenser_y = dataset[i]
+#                 if tenser_y in target_labels:
+#                     target_idx.append(i)
+#             self.idxs = [int(i) for i in target_idx]
 
 
 def average_weights(w):

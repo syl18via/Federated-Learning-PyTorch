@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 
-from utils import get_dataset
+from sampling import get_dataset
 from options import args_parser
 from client import test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar

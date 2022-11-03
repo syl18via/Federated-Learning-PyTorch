@@ -17,7 +17,7 @@ from svfl import calculate_sv
 from options import args_parser
 from utils import exp_details
 import policy
-from utils import get_dataset
+from client import get_clients
 
 np.random.seed(1)
 torch.manual_seed(0)
@@ -32,7 +32,7 @@ TASK_NUM = 2
 
 bid_per_loss_delta_space = [1]
 required_client_num_space = [2]
-target_labels_space = [[0,1],[1,4]]
+target_labels_space = [[0,5],[1,4]]
 
 if __name__ == '__main__':
     start_time = time.time()
@@ -44,13 +44,13 @@ if __name__ == '__main__':
     args = args_parser()
     exp_details(args)
     
-    train_dataset, test_dataset, user_groups = get_dataset(args)
+    train_dataset, test_client, all_clients = get_clients(args)
     ############################### Task ###########################################
     ### Initialize the global model parameters for both tasks
     ### At the first epoch, both tasks select all clients
     task_list = []
     def create_task(selected_client_idx, required_client_num, bid_per_loss_delta, target_labels=None):
-        task = Task(args,logger,train_dataset, test_dataset, user_groups,
+        task = Task(args,logger,train_dataset, test_client, all_clients,
             task_id = len(task_list),
             selected_client_idx=selected_client_idx,
             required_client_num=required_client_num,

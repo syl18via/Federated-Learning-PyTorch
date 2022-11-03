@@ -13,8 +13,8 @@ from tensorboardX import SummaryWriter
 from options import args_parser
 from client import test_inference
 from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
-from utils import get_dataset, average_weights, exp_details
-from client import Client
+from utils import average_weights, exp_details
+from client import VirtualClient
 from svfl import calculate_sv
 
 class ClientState:
@@ -62,7 +62,7 @@ def fed_avg(client2weights):
 
 class Task:
     def __init__(self, args,
-            logger,train_dataset, test_dataset, user_groups,
+            logger,train_dataset, test_client, all_clients,
             task_id, selected_client_idx,
             required_client_num=None,
             bid_per_loss_delta=None,
@@ -74,7 +74,7 @@ class Task:
         device = 'cuda' if args.gpu else 'cpu'
 
         # load dataset and user groups
-        self.train_dataset, self.test_dataset, self.user_groups = train_dataset, test_dataset, user_groups
+        self.train_dataset, self.test_client, self.all_clients = train_dataset, test_client, all_clients
 
         # BUILD MODEL
         if args.model == 'cnn':
@@ -112,7 +112,7 @@ class Task:
         self.required_client_num = required_client_num
         self.bid_per_loss_delta = bid_per_loss_delta
         self.target_labels = target_labels
-        print(target_labels)
+        print(f"target_labels: {target_labels}")
 
         self.total_loss_delta = None
 
@@ -167,9 +167,9 @@ class Task:
              f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {self.selected_client_idx}')
     
     def init_test_model(self, args, logger):
-        self.test_model = Client(
+        self.test_model = VirtualClient(
             args=args,
-            dataset=self.test_dataset,
+            dataset=self.test_client,
             logger=logger,
             global_model=self.global_model,
             target_label= self.target_labels,
@@ -229,9 +229,9 @@ class Task:
         sv = calculate_sv(client2weights, self.evaluate_model, fed_avg)
         return sv
 
-    def end_train( self, args, test_dataset, start_time):
+    def end_train( self, args, test_client, start_time):
         # Test inference after completion of training
-        test_acc, test_loss = test_inference(args.gpu is not None, self.global_model, test_dataset)
+        test_acc, test_loss = test_inference(args.gpu is not None, self.global_model, test_client)
 
         print(f' \n Task {self.task_id}: Results after {args.epochs} global rounds of training:')
         print("|---- Avg Train Accuracy: {:.2f}%".format(100*self.train_accuracy[-1]))
@@ -245,7 +245,7 @@ class Task:
             return
         for client_idx in self.selected_client_idx:
             self.selected_clients.append(
-                Client(self.args, self.user_groups[client_idx],
+                VirtualClient(self.args, self.all_clients[client_idx],
                     self.logger, self.global_model, target_label=self.target_labels))
 
     @property
