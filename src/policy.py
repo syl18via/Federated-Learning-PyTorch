@@ -217,7 +217,7 @@ def simple_select_clients(num_of_client, task_list, reverse=False):
     free_client = [True] * num_of_client
     succ_cnt = 0
 
-    task_list[0].selected_client_idx = [2,7]
+    task_list[0].selected_client_idx = [2,6]
     task_list[1].selected_client_idx = [4,9]
     # print("Clients {} are assined to task {}".format(selected_client_index, _task.task_id))
     task_list[0].init_select_clients()

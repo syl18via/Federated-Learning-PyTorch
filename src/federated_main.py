@@ -26,13 +26,14 @@ random.seed(0)
 ### Experiment Configs
 MIX_RATIO = 0.8
 SIMULATE = False
-EPOCH_NUM = 200
+EPOCH_NUM = 100
 TRIAL_NUM = 1
 TASK_NUM = 2
+STEP_NUM = 1
 
 bid_per_loss_delta_space = [1]
 required_client_num_space = [2]
-target_labels_space = [[0,5],[1,4]]
+target_labels_space = [list(range(5)),list(range(5,10))]
 
 if __name__ == '__main__':
     start_time = time.time()
@@ -102,7 +103,7 @@ if __name__ == '__main__':
     for epoch in range(EPOCH_NUM):
         for task in task_list:
             task.epoch = epoch
-        for round_idx in range(1):
+        for round_idx in range(STEP_NUM):
             ### Train the model parameters distributedly
             for task in task_list:
                 task.train_one_round()

@@ -64,7 +64,7 @@ def mnist_noniid_v2(dataset, num_users):
     labels = dataset.train_labels.numpy()
 
     CLASS_NUM = 10
-    MAJOR2MINOR_SAMPLE_RATIO = 99
+    MAJOR2MINOR_SAMPLE_RATIO = 99.99
     MAJOR_CLASS_NUM = 2
     total_sample_num = len(labels)
     sample_num_per_client = total_sample_num // num_users
