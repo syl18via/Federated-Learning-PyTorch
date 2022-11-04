@@ -64,8 +64,8 @@ def mnist_noniid_v2(dataset, num_users):
     labels = dataset.train_labels.numpy()
 
     CLASS_NUM = 10
-    MAJOR2MINOR_SAMPLE_RATIO = 99.99
-    MAJOR_CLASS_NUM = 2
+    MAJOR2MINOR_SAMPLE_RATIO = 99
+    MAJOR_CLASS_NUM = 5
     total_sample_num = len(labels)
     sample_num_per_client = total_sample_num // num_users
     sample_num_per_major_class = int(MAJOR2MINOR_SAMPLE_RATIO * sample_num_per_client / (MAJOR2MINOR_SAMPLE_RATIO * MAJOR_CLASS_NUM + 1 * (CLASS_NUM - MAJOR_CLASS_NUM)))
@@ -81,8 +81,22 @@ def mnist_noniid_v2(dataset, num_users):
     ### Construct an imbalanced dataset
     ### For each client, randomly select 2 labels as the major class
     for i in range(num_users):
-        major_class = np.random.choice(CLASS_NUM, MAJOR_CLASS_NUM, replace=False)
+
+        if i in [0, 1]:
+            major_class = list(range(5))
+        elif i in [2, 3]:
+            major_class = list(range(5, 10))
+        else:
+            ### make sure the major classes do not belong to [0, 5) or [5, 10) at the same time
+            major_class1 = np.random.choice(int(CLASS_NUM/2)-2, 
+                int(MAJOR_CLASS_NUM/2), replace=False)
+            major_class2 = np.random.choice(int(CLASS_NUM/2)-2,
+                MAJOR_CLASS_NUM-int(MAJOR_CLASS_NUM/2), replace=False) + int(CLASS_NUM/2)
+            major_class = list(major_class1) + list(major_class2)
+            
+        # major_class = np.random.choice(CLASS_NUM, MAJOR_CLASS_NUM, replace=False)
         # major_class = [0, 1]
+
         for _class in range(CLASS_NUM):
             sample_idxs_of_this_class = label2idxs[_class]
             if _class in major_class:

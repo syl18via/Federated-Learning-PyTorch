@@ -33,6 +33,7 @@ STEP_NUM = 1
 
 bid_per_loss_delta_space = [1]
 required_client_num_space = [2]
+# target_labels_space = [[0,5],[1,4]]
 target_labels_space = [list(range(5)),list(range(5,10))]
 
 if __name__ == '__main__':
