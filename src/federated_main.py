@@ -34,7 +34,18 @@ STEP_NUM = 1
 bid_per_loss_delta_space = [1]
 required_client_num_space = [2]
 # target_labels_space = [[0,5],[1,4]]
-target_labels_space = [list(range(5)),list(range(5,10))]
+# target_labels_space = [list(range(5)),list(range(5,10))]
+
+target_labels_space = [
+    [3, 6, 9],
+    [2, 8, 7]
+]
+
+test_required_dist_space = [
+    [30, 30, 30],
+    [30, 30, 30]
+]
+
 
 if __name__ == '__main__':
     start_time = time.time()
@@ -51,13 +62,15 @@ if __name__ == '__main__':
     ### Initialize the global model parameters for both tasks
     ### At the first epoch, both tasks select all clients
     task_list = []
-    def create_task(selected_client_idx, required_client_num, bid_per_loss_delta, target_labels=None):
+    def create_task(selected_client_idx, required_client_num, bid_per_loss_delta,
+            target_labels=None, test_required_dist=None):
         task = Task(args,logger,train_dataset, test_client, all_clients,
             task_id = len(task_list),
             selected_client_idx=selected_client_idx,
             required_client_num=required_client_num,
             bid_per_loss_delta=bid_per_loss_delta,
-            target_labels=target_labels)
+            target_labels=target_labels,
+            test_required_dist=test_required_dist)
         # assert task.target_labels is not None, target_labels
         task_list.append(task)
 
@@ -66,7 +79,8 @@ if __name__ == '__main__':
             selected_client_idx=list(range(args.num_users)),
             required_client_num=util.sample_config(required_client_num_space, task_id, use_random=False),
             bid_per_loss_delta=util.sample_config(bid_per_loss_delta_space, task_id, use_random=False),
-            target_labels=util.sample_config(target_labels_space, task_id, use_random=False)
+            target_labels=util.sample_config(target_labels_space, task_id, use_random=False),
+            test_required_dist=util.sample_config(test_required_dist_space, task_id, use_random=False)
         )
     
     ############################### Predefined structure for shap ###########################################

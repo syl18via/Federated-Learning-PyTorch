@@ -73,7 +73,7 @@ def get_clients(args):
 
 class VirtualClient:
     def __init__(self, args, dataset, logger, global_model, target_labels=None,
-            split=False, shuffle=True, filter=False):
+            split=False, shuffle=True, filter=False, required_dist=None):
         self.args = args
         self.logger = logger
 
@@ -91,7 +91,7 @@ class VirtualClient:
             ### For samples not belonging to target labels, label them with -1
             assert isinstance(dataset, Client), type(dataset)
             assert target_labels is not None
-            self.dataset = DatasetRelabel(dataset.dataset, dataset.idxs, target_labels)
+            self.dataset = DatasetRelabel(dataset.dataset, dataset.idxs, target_labels, required_dist=required_dist)
         
         if split:
             self.trainloader, self.validloader, self.testloader = self.train_val_test(self.dataset)

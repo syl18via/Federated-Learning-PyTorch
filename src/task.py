@@ -66,7 +66,8 @@ class Task:
             task_id, selected_client_idx,
             required_client_num=None,
             bid_per_loss_delta=None,
-            target_labels=None
+            target_labels=None,
+            test_required_dist=None
             ):
 
         if args.gpu:
@@ -83,6 +84,7 @@ class Task:
         else:
             ### +1 because we taks the minor classes as one class
             class_num = len(self.target_labels) + 1
+        self.test_required_dist = test_required_dist
 
         # BUILD MODEL
         if args.model == 'cnn':
@@ -179,7 +181,15 @@ class Task:
             logger=logger,
             global_model=self.global_model,
             target_labels= self.target_labels,
-            shuffle=False)
+            shuffle=False,
+            required_dist=self.test_required_dist)
+        
+        ### Check the distribution of the virtual client
+        from client import check_dist
+        # check_dist(f"Test data", self.test_client)
+        check_dist(f"Task {self.task_id}, target_labels {self.target_labels},  required distribution {self.test_required_dist},"
+            f" test data distribution after relabeling",
+            self.test_model.dataset)
 
     def evaluate_model(self, weights=None):
         # function to compute evaluation metric, ex: accuracy, precision
