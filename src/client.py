@@ -65,9 +65,6 @@ def get_clients(args):
         check_dist(f"Client {client_id}", _client)
         clients[client_id] = _client
 
-    import code
-    code.interact(local=locals())
-
     sample_idxs = range(len(test_dataset))
     test_client = Client(-1, test_dataset, list(sample_idxs))
     check_dist(f"Test", test_client)
