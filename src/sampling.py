@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 # Python version: 3.6
 
-
-from unicodedata import numeric
 import numpy as np
 from torchvision import datasets, transforms
+from typing import Union, Dict
 
 def mnist_iid(dataset, num_users):
     """
@@ -109,6 +108,59 @@ def mnist_noniid_v2(dataset, num_users):
 
     return dict_users
 
+CLIENT_DATA_DIST = [
+    #  0,  1,  2,   3,   4,   5,  6,   7,    8,  9
+    [1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.4, 1.6, 30],#client0
+    [1.4, 1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.6, 30],
+    [1.4, 1.4, 30, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.6],
+    [1.4, 1.4, 30, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.6],
+    [30 ,  30, 1.4,1.4,  30, 1.4, 1.4,1.4,1.4, 1.6],
+    [1.4, 30, 1.4, 1.4, 30,  30, 1.4, 1.4, 1.4, 1.6],
+    [1.4, 1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.6, 30],
+    [30, 1.4, 1.4, 30, 1.4, 1.4, 1.4, 30, 1.4, 1.6],
+    [1.4, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.4, 30, 1.6],
+    [30 ,  30, 1.4,1.4,  30, 1.4, 1.4,1.4,1.4, 1.6]
+]
+
+CLIENT_DATA_NUM = [1200*5] * 10
+CLASS_NUM = 10
+
+def mnist_noniid_v3(dataset, num_users):
+    """
+    Sample non-I.I.D client data from MNIST dataset
+    :param dataset:
+    :param num_users:
+    :return:
+    """
+    # 60,000 training imgs -->  200 imgs/shard X 300 shards
+    dict_users: Dict[int, np.ndarray] = {i: np.array([]) for i in range(num_users)}
+    # idxs = np.arange(len(dataset))
+    labels = dataset.train_labels.numpy()
+
+    # Group labels
+    label2idxs = []
+    for digit in range(CLASS_NUM):
+        indexs = [i for i, label in enumerate(labels) if label == digit]
+        # indexs = indexs[0:5421]
+        label2idxs.append(indexs)
+
+    label2bias = [0] * CLASS_NUM
+    
+    for client_id in range(num_users):
+
+        _dist: np.ndarray = np.array(CLIENT_DATA_DIST[client_id])
+        _data_num: int = CLIENT_DATA_NUM[client_id]
+        _data_num_per_label: np.ndarray = _dist * _data_num / 100
+
+        for _class_id in range(CLASS_NUM):
+            all_data_idxs_of_this_class: list = label2idxs[_class_id]
+            required_data_num_this_class: int = int(_data_num_per_label[_class_id])
+            required_data_idxs = all_data_idxs_of_this_class[label2bias[_class_id]:(label2bias[_class_id]+required_data_num_this_class)]
+            label2bias[_class_id] += required_data_num_this_class
+            dict_users[client_id] = np.concatenate((dict_users[client_id], required_data_idxs), axis=0)
+
+    return dict_users
+
 def mnist_noniid(dataset, num_users):
     # return mnist_noniid_v1(dataset, num_users)
     return mnist_noniid_v2(dataset, num_users)
@@ -123,8 +175,6 @@ def mnist_iid_noniid(dataset, num_users):
         else:
             dict_users[i] = dict_non_iid[i]
     return dict_users
-
-
 
 
 def mnist_noniid_unequal(dataset, num_users):
@@ -261,72 +311,7 @@ def cifar_noniid(dataset, num_users):
                 (dict_users[i], idxs[rand*num_imgs:(rand+1)*num_imgs]), axis=0)
     return dict_users
 
-client_label_dist = [
-    #  0,  1,  2,   3,   4,   5,  6,   7,    8,  9
-    [1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.4, 1.6, 30],#client0
-    [1.4, 1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.6, 30],
-    [1.4, 1.4, 30, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.6],
-    [1.4, 1.4, 30, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.6],
-    [30 ,  30, 1.4,1.4,  30, 1.4, 1.4,1.4,1.4, 1.6],
-    [1.4, 30, 1.4, 1.4, 30,  30, 1.4, 1.4, 1.4, 1.6],
-    [1.4, 1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.6, 30],
-    [30, 1.4, 1.4, 30, 1.4, 1.4, 1.4, 30, 1.4, 1.6],
-    [1.4, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.4, 30, 1.6],
-    [30 ,  30, 1.4,1.4,  30, 1.4, 1.4,1.4,1.4, 1.6]
-]
 
-client_data_num = [1200*5] * 10
-CLASS_NUM = 10
-
-def mnist_noniid_v3(dataset, num_users):
-    """
-    Sample non-I.I.D client data from MNIST dataset
-    :param dataset:
-    :param num_users:
-    :return:
-    """
-    # 60,000 training imgs -->  200 imgs/shard X 300 shards
-    dict_users = {i: np.array([]) for i in range(num_users)}
-    # idxs = np.arange(len(dataset))
-    labels = dataset.train_labels.numpy()
-
-
-    # Group labels
-    label2idxs = []
-    for digit in range(CLASS_NUM):
-        indexs = [i for i, label in enumerate(labels) if label == digit]
-        # indexs = indexs[0:5421]
-        label2idxs.append(indexs)
-
-    
-    for i in range(num_users):
-
-        if i in [0, 1]:
-            major_class = list(range(5))
-        elif i in [2, 3]:
-            major_class = list(range(5, 10))
-        else:
-            ### make sure the major classes do not belong to [0, 5) or [5, 10) at the same time
-            major_class1 = np.random.choice(int(CLASS_NUM/2)-2, 
-                int(MAJOR_CLASS_NUM/2), replace=False)
-            major_class2 = np.random.choice(int(CLASS_NUM/2)-2,
-                MAJOR_CLASS_NUM-int(MAJOR_CLASS_NUM/2), replace=False) + int(CLASS_NUM/2)
-            major_class = list(major_class1) + list(major_class2)
-            
-        # major_class = np.random.choice(CLASS_NUM, MAJOR_CLASS_NUM, replace=False)
-        # major_class = [0, 1]
-
-        for _class in range(CLASS_NUM):
-            sample_idxs_of_this_class = label2idxs[_class]
-            if _class in major_class:
-                dict_users[i] = np.concatenate((dict_users[i],
-                    np.random.choice(sample_idxs_of_this_class, sample_num_per_major_class, replace=False)), axis=0)
-            else:
-                ### In minor class
-                dict_users[i] = np.concatenate((dict_users[i],
-                    np.random.choice(sample_idxs_of_this_class, sample_num_per_minor_class, replace=False)), axis=0)
-
-    return dict_users
 def get_dataset(args):
     """ Returns train and test datasets and a user group which is a dict where
     the keys are the user index and the values are the corresponding data for
@@ -376,9 +361,12 @@ def get_dataset(args):
         test_dataset = datasets.MNIST(data_dir, train=False, download=True,
                                       transform=apply_transform)
 
+
         # sample training data amongst users
-        if args.halfiid:
-            user_groups = mnist_iid_noniid(train_dataset,args.num_users)
+        if True:
+            user_groups = mnist_noniid_v3(dataset=train_dataset, num_users=args.num_users)
+        elif args.halfiid:
+            user_groups = mnist_iid_noniid(train_dataset, args.num_users)
         elif args.iid:
             # Sample IID user data from Mnist
             user_groups = mnist_iid(train_dataset, args.num_users)
