@@ -23,6 +23,23 @@ class DatasetSplit(Dataset):
         image, label = self.dataset[self.idxs[item]]
         return torch.tensor(image), torch.tensor(label)
 
+class DatasetRelabel(Dataset):
+    """An abstract Dataset class wrapped around Pytorch Dataset class.
+    """
+
+    def __init__(self, dataset, target_labels=None):
+        self.dataset = dataset
+        self.target_labels = target_labels
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, item):
+        image, label = self.dataset[item]
+        if self.target_labels is not None and label not in self.target_labels:
+            label = -1 ### Relabel as minor class
+        return torch.tensor(image), torch.tensor(label)
+
 # class DatasetLabelSpecific(DatasetSplit):
 #     """An abstract Dataset class wrapped around Pytorch Dataset class.
 #     """

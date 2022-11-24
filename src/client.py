@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from collections import Counter
 
-from utils import DatasetSplit
+from utils import DatasetSplit, DatasetRelabel
 from torch.utils.data import DataLoader
 from sampling import get_dataset
 
@@ -65,6 +65,9 @@ def get_clients(args):
         check_dist(f"Client {client_id}", _client)
         clients[client_id] = _client
 
+    import code
+    code.interact(local=locals())
+
     sample_idxs = range(len(test_dataset))
     test_client = Client(-1, test_dataset, list(sample_idxs))
     check_dist(f"Test", test_client)
@@ -72,20 +75,26 @@ def get_clients(args):
     return train_dataset, test_client, clients
 
 class VirtualClient:
-    def __init__(self, args, dataset, logger, global_model, target_label=None,
-            split=False, shuffle=True):
+    def __init__(self, args, dataset, logger, global_model, target_labels=None,
+            split=False, shuffle=True, filter=False):
         self.args = args
         self.logger = logger
 
-        # target_label = None
-        if target_label is None:
+        # target_labels = None
+        if target_labels is None:
             self.dataset = dataset
-        else:
+        elif filter:
+            ### For samples not belonging to target labels, filter out
             assert isinstance(dataset, Client), type(dataset)
             target_idxs = []
-            for _label in target_label:
+            for _label in target_labels:
                 target_idxs += dataset.lable2data_idxs[_label]
             self.dataset = DatasetSplit(dataset.dataset, target_idxs)
+        else:
+            ### For samples not belonging to target labels, label them with -1
+            assert isinstance(dataset, Client), type(dataset)
+            assert target_labels is not None
+            self.dataset = DatasetRelabel(dataset.datset, target_labels)
 
         if split:
             self.trainloader, self.validloader, self.testloader = self.train_val_test(self.dataset)
@@ -97,7 +106,7 @@ class VirtualClient:
         self.device = 'cuda' if args.gpu else 'cpu'
         # Default criterion set to NLL loss function
         self.criterion = nn.NLLLoss().to(self.device)
-        self.target_labels = target_label
+        self.target_labels = target_labels
         self.model = None
         self.load_weights(global_model)
         self.local_step = 0
@@ -108,11 +117,6 @@ class VirtualClient:
         elif self.args.optimizer == 'adam':
             self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr,
                                          weight_decay=1e-4)
-
-    def train_step(self, global_model, epoch):
-        _weight, loss = self.update_weights(
-            global_model, global_round=epoch)
-        return _weight, loss
     
     def train_val_test(self, dataset):
         """
@@ -144,7 +148,7 @@ class VirtualClient:
         else:
             raise ValueError()
 
-    def update_weights(self, global_model, global_round):
+    def train_step(self, global_model, epoch):
         self.load_weights(global_model)
         # Set mode to train model
         self.model.train()

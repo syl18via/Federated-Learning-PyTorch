@@ -172,7 +172,7 @@ class Task:
             dataset=self.test_client,
             logger=logger,
             global_model=self.global_model,
-            target_label= self.target_labels,
+            target_labels= self.target_labels,
             shuffle=False)
 
     def evaluate_model(self, weights=None):
@@ -246,7 +246,7 @@ class Task:
         for client_idx in self.selected_client_idx:
             self.selected_clients.append(
                 VirtualClient(self.args, self.all_clients[client_idx],
-                    self.logger, self.global_model, target_label=self.target_labels))
+                    self.logger, self.global_model, target_labels=self.target_labels))
 
     @property
     def delta_accu(self):
