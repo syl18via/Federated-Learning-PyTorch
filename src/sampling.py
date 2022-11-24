@@ -261,6 +261,72 @@ def cifar_noniid(dataset, num_users):
                 (dict_users[i], idxs[rand*num_imgs:(rand+1)*num_imgs]), axis=0)
     return dict_users
 
+client_label_dist = [
+    #  0,  1,  2,   3,   4,   5,  6,   7,    8,  9
+    [1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.4, 1.6, 30],#client0
+    [1.4, 1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.6, 30],
+    [1.4, 1.4, 30, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.6],
+    [1.4, 1.4, 30, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.6],
+    [30 ,  30, 1.4,1.4,  30, 1.4, 1.4,1.4,1.4, 1.6],
+    [1.4, 30, 1.4, 1.4, 30,  30, 1.4, 1.4, 1.4, 1.6],
+    [1.4, 1.4, 1.4, 30, 1.4, 1.4, 30, 1.4, 1.6, 30],
+    [30, 1.4, 1.4, 30, 1.4, 1.4, 1.4, 30, 1.4, 1.6],
+    [1.4, 1.4, 1.4, 1.4, 1.4, 30, 30, 1.4, 30, 1.6],
+    [30 ,  30, 1.4,1.4,  30, 1.4, 1.4,1.4,1.4, 1.6]
+]
+
+client_data_num = [1200*5] * 10
+CLASS_NUM = 10
+
+def mnist_noniid_v3(dataset, num_users):
+    """
+    Sample non-I.I.D client data from MNIST dataset
+    :param dataset:
+    :param num_users:
+    :return:
+    """
+    # 60,000 training imgs -->  200 imgs/shard X 300 shards
+    dict_users = {i: np.array([]) for i in range(num_users)}
+    # idxs = np.arange(len(dataset))
+    labels = dataset.train_labels.numpy()
+
+
+    # Group labels
+    label2idxs = []
+    for digit in range(CLASS_NUM):
+        indexs = [i for i, label in enumerate(labels) if label == digit]
+        # indexs = indexs[0:5421]
+        label2idxs.append(indexs)
+
+    
+    for i in range(num_users):
+
+        if i in [0, 1]:
+            major_class = list(range(5))
+        elif i in [2, 3]:
+            major_class = list(range(5, 10))
+        else:
+            ### make sure the major classes do not belong to [0, 5) or [5, 10) at the same time
+            major_class1 = np.random.choice(int(CLASS_NUM/2)-2, 
+                int(MAJOR_CLASS_NUM/2), replace=False)
+            major_class2 = np.random.choice(int(CLASS_NUM/2)-2,
+                MAJOR_CLASS_NUM-int(MAJOR_CLASS_NUM/2), replace=False) + int(CLASS_NUM/2)
+            major_class = list(major_class1) + list(major_class2)
+            
+        # major_class = np.random.choice(CLASS_NUM, MAJOR_CLASS_NUM, replace=False)
+        # major_class = [0, 1]
+
+        for _class in range(CLASS_NUM):
+            sample_idxs_of_this_class = label2idxs[_class]
+            if _class in major_class:
+                dict_users[i] = np.concatenate((dict_users[i],
+                    np.random.choice(sample_idxs_of_this_class, sample_num_per_major_class, replace=False)), axis=0)
+            else:
+                ### In minor class
+                dict_users[i] = np.concatenate((dict_users[i],
+                    np.random.choice(sample_idxs_of_this_class, sample_num_per_minor_class, replace=False)), axis=0)
+
+    return dict_users
 def get_dataset(args):
     """ Returns train and test datasets and a user group which is a dict where
     the keys are the user index and the values are the corresponding data for
