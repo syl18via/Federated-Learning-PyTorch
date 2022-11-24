@@ -76,15 +76,23 @@ class Task:
         # load dataset and user groups
         self.train_dataset, self.test_client, self.all_clients = train_dataset, test_client, all_clients
 
+        self.target_labels = target_labels
+        print(f"target_labels: {target_labels}")
+        if target_labels is None:
+            class_num = args.num_classes
+        else:
+            ### +1 because we taks the minor classes as one class
+            class_num = len(self.target_labels) + 1
+
         # BUILD MODEL
         if args.model == 'cnn':
-            # Convolutional neural netork
+            # Convolutional neural network
             if args.dataset == 'mnist':
-                self.global_model = CNNMnist(args=args)
+                self.global_model = CNNMnist(args=args, class_num=class_num)
             elif args.dataset == 'fmnist':
-                self.global_model = CNNFashion_Mnist(args=args)
+                self.global_model = CNNFashion_Mnist(args=args, class_num=class_num)
             elif args.dataset == 'cifar':
-                self.global_model = CNNCifar(args=args)
+                self.global_model = CNNCifar(args=args, class_num=class_num)
             else:
                 raise ValueError(f"Invalid dataset {args.dataset}")
         elif args.model == 'mlp':
@@ -111,8 +119,6 @@ class Task:
         self.epoch = 0
         self.required_client_num = required_client_num
         self.bid_per_loss_delta = bid_per_loss_delta
-        self.target_labels = target_labels
-        print(f"target_labels: {target_labels}")
 
         self.total_loss_delta = None
 
@@ -247,6 +253,12 @@ class Task:
             self.selected_clients.append(
                 VirtualClient(self.args, self.all_clients[client_idx],
                     self.logger, self.global_model, target_labels=self.target_labels))
+            
+            ### Check the distribution of the virtual client
+            # from client import check_dist
+            # check_dist(f"client: {client_idx}", self.all_clients[client_idx])
+            # check_dist(f"task {self.task_id}, client:{client_idx}, Target labels {self.target_labels}",
+            #     self.selected_clients[-1].dataset)
 
     @property
     def delta_accu(self):

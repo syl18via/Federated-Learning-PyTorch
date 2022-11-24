@@ -91,8 +91,8 @@ class VirtualClient:
             ### For samples not belonging to target labels, label them with -1
             assert isinstance(dataset, Client), type(dataset)
             assert target_labels is not None
-            self.dataset = DatasetRelabel(dataset.datset, target_labels)
-
+            self.dataset = DatasetRelabel(dataset.dataset, dataset.idxs, target_labels)
+        
         if split:
             self.trainloader, self.validloader, self.testloader = self.train_val_test(self.dataset)
         else:
@@ -167,6 +167,8 @@ class VirtualClient:
 
             self.model.zero_grad()
             log_probs = self.model(images)
+            # import code
+            # code.interact(local=locals())
             loss = self.criterion(log_probs, labels)
             loss.backward()
             self.optimizer.step()
