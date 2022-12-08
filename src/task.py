@@ -141,13 +141,13 @@ class Task:
         self.init_select_clients()
         
         self.global_weights= copy.deepcopy(self.global_model.state_dict())
-        accu= self.evaluate_model(self.global_weights)
+        self.accu = self.evaluate_model(self.global_weights)
 
-        print(f"[Task {self.task_id}] target_labels: {target_labels}, accuracy {accu}")
+        print(f"[Task {self.task_id}] target_labels: {target_labels}, accuracy {self.accu}")
 
         self.train_loss, self.train_accuracy = [], []
 
-        self.accuracy_per_update = [accu]
+        self.accuracy_per_update = [self.accu]
         self.loss_before_step = None
 
     def train_one_round(self):
@@ -176,8 +176,8 @@ class Task:
             list_acc, list_loss = [], []
             self.global_model.eval()
             
-            accu= self.evaluate_model(self.global_weights)
-            self.train_accuracy.append(accu)
+            self.accu= self.evaluate_model(self.global_weights)
+            self.train_accuracy.append(self.accu)
             # print(f' \nlist acc {list_acc} ')
             
             print(f'[Task {self.task_id}] Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {self.train_loss[-1]:.3f}'
@@ -287,7 +287,7 @@ class Task:
         self.cient_update_cnt += 1
 
     def update_proj_list(self):
-        self.accuracy_per_update.append(self.train_accuracy[-1])
+        self.accuracy_per_update.append(self.accu)
         if self.accuracy_per_update[-1] > self.accuracy_per_update[-2]:
             ### Better accuracy, larger projection is better
             pass
