@@ -16,6 +16,7 @@ from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
 from utils import average_weights, exp_details
 from client import VirtualClient
 from svfl import calculate_sv
+from util import PRINT_EVERY
 
 class ClientState:
     ''' Store statistic information for all clients, which is used for client selection'''
@@ -53,7 +54,7 @@ class ClientState:
             self.client2proj[idx] = np.array(list(proj_dict.values())).mean()
         # print('clientID2proj', clientID2proj)
 
-PRINT_EVERY = 10
+
 
 def fed_avg(client2weights):
     # function to merge the model updates into one model for evaluation, ex: FedAvg, FedProx
@@ -113,8 +114,9 @@ class Task:
         # print(args.dataset)
         self.global_model.to(device)
         self.global_model.train()
+        
         # print(self.global_model)
-        self.train_loss, self.train_accuracy = [], []
+        
 
         self.selected_client_idx = selected_client_idx    # a list of client indexes of selected clients
         self.task_id = task_id
@@ -133,6 +135,14 @@ class Task:
         self.local_weights = []
 
         self.init_select_clients()
+        
+        global_weights= copy.deepcopy(self.global_model.state_dict())
+        accu= self.evaluate_model(global_weights)
+        print(f"{self.task_id} accuracy {accu}")
+
+        self.train_loss, self.train_accuracy = [], []
+
+        self.accuracy_per_update = [accu]
 
     def train_one_round(self):
         
@@ -171,7 +181,7 @@ class Task:
             self.train_accuracy.append(accu)
             # print(f' \nlist acc {list_acc} ')
             
-            print(f'[Task {self.task_id}] Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {np.mean(np.array(self.train_loss)):.3f}'
+            print(f'[Task {self.task_id}] Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {self.train_loss[-1]:.3f}'
              f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {self.selected_client_idx}')
     
     def init_test_model(self, args, logger):

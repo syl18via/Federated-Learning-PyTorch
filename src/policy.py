@@ -217,7 +217,7 @@ def simple_select_clients(num_of_client, task_list, reverse=False):
     free_client = [True] * num_of_client
     succ_cnt = 0
 
-    task_list[0].selected_client_idx = [0, 1]
+    task_list[0].selected_client_idx = [1, 6]
     task_list[1].selected_client_idx = [2, 3]
     # print("Clients {} are assined to task {}".format(selected_client_index, _task.task_id))
     task_list[0].init_select_clients()
@@ -305,15 +305,22 @@ def momentum_select_clients(num_of_client, task_list):
         ### momemtum_based_grad_proj 是一个list，长度等于 总的client数量，挑出momemtum_based_grad_proj最小的num_users client
         # 这里client_state 不需要传参了， 因为client_state在这个函数定义之前就已经定义了，函数内部可以直接访问client_state ok？
         momemtum_based_grad_proj = _task.client_state.client2proj
+        #print(momemtum_based_grad_proj)
         assert isinstance(momemtum_based_grad_proj, list) or isinstance(momemtum_based_grad_proj, np.ndarray)
         assert len(momemtum_based_grad_proj) == num_of_client
 
         momemtum_based_grad_proj = np.array(momemtum_based_grad_proj)
-        sorted_client_idxs = momemtum_based_grad_proj.argsort()
+        if _task.accuracy_per_update[-1] > _task.accuracy_per_update[-2]:
+            #larger projection is better
+            sorted_client_idxs = momemtum_based_grad_proj.argsort()[::-1]
+        else:
+            #smaller projection is better
+            sorted_client_idxs = momemtum_based_grad_proj.argsort()
+
 
         ### Select clients
         selected_client_index = []
-        for client_idx in sorted_client_idxs[::-1]:
+        for client_idx in sorted_client_idxs:
             if free_client[client_idx] :
                 # and buyer_give_more_money(client_idx, task_idx, ask_table, bid_table):
                 is_task_ready = select_one_client(client_idx, selected_client_index, free_client, _task)

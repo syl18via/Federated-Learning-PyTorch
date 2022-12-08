@@ -1,6 +1,11 @@
 import numpy as np
 import random
 
+STEP_NUM = 1
+PRINT_EVERY = 1
+
+assert PRINT_EVERY <= STEP_NUM
+
 def normalize_data(data, method="max_min"):
     data = np.array(data)
     if method == "max_min":

@@ -18,6 +18,7 @@ from options import args_parser
 from utils import exp_details
 import policy
 from client import get_clients
+from util import STEP_NUM
 
 np.random.seed(1)
 torch.manual_seed(0)
@@ -26,10 +27,10 @@ random.seed(0)
 ### Experiment Configs
 MIX_RATIO = 0.8
 SIMULATE = False
-EPOCH_NUM = 100
+EPOCH_NUM = 200
 TRIAL_NUM = 1
 TASK_NUM = 2
-STEP_NUM = 1
+
 
 bid_per_loss_delta_space = [1]
 required_client_num_space = [2]
@@ -122,6 +123,9 @@ if __name__ == '__main__':
             ### Train the model parameters distributedly
             for task in task_list:
                 task.train_one_round()
+        for task in task_list:
+            task.accuracy_per_update.append(task.train_accuracy[-1])
+
 
         ### At the end of this epoch
         if args.policy == "shap":
