@@ -25,7 +25,7 @@ class ClientState:
         # 在这个类的定义里面新建一个变量 用来存shapley value
         self.sv = np.array([-math.inf] * num_users)
     
-    def update_proj_list(self, idxs_users, global_weights, global_weights_before, local_weights):
+    def update_proj_list(self, idxs_users, global_weights, global_weights_before, local_weights, update_cnt, reverse=False):
         #calculate projection of client local gradient on global gradient
         global_grad={}
         for key in global_weights.keys():
@@ -37,7 +37,9 @@ class ClientState:
             for key in local_weights[i].keys():
                 clientid_to_grad[idx][key] = (local_weights[i][key]- global_weights_before[key]).data.cpu().numpy()
 
-        # clientID2proj = {}
+        assert update_cnt > 0
+        _weight = -1 if reverse else 1
+        # print(f"The {update_cnt}-th update to the projection list")
         for idx in idxs_users:
             #### Method 2
             proj_dict = {}
@@ -47,14 +49,15 @@ class ClientState:
                 # print(type(g_norm), g_norm.shape)
                 local_grad = clientid_to_grad[idx][key].flatten()
                 try:
-                    proj_dict[key]= np.dot(local_grad, _global_grad) / g_norm
+                    proj_dict[key]= _weight * np.dot(local_grad, _global_grad) / g_norm
                 except:
                     import code; code.interact(local=locals())
-            # clientID2proj[idx] = np.array(list(proj_dict.values())).mean()
-            self.client2proj[idx] = np.array(list(proj_dict.values())).mean()
-        # print('clientID2proj', clientID2proj)
-
-
+            if update_cnt == 1:
+                self.client2proj[idx] = np.array(list(proj_dict.values())).mean()
+            else:
+                self.client2proj[idx] = ((update_cnt - 1)/ update_cnt) * self.client2proj[idx] + \
+                        (1 / update_cnt) * np.array(list(proj_dict.values())).mean()
+    
 
 def fed_avg(client2weights):
     # function to merge the model updates into one model for evaluation, ex: FedAvg, FedProx
@@ -79,7 +82,6 @@ class Task:
         self.train_dataset, self.test_client, self.all_clients = train_dataset, test_client, all_clients
 
         self.target_labels = target_labels
-        print(f"target_labels: {target_labels}")
         if target_labels is None:
             class_num = args.num_classes
         else:
@@ -121,11 +123,13 @@ class Task:
         self.selected_client_idx = selected_client_idx    # a list of client indexes of selected clients
         self.task_id = task_id
         self.epoch = 0
+        self.step = 0
         self.required_client_num = required_client_num
         self.bid_per_loss_delta = bid_per_loss_delta
 
         self.total_loss_delta = None
 
+        self.cient_update_cnt = 0
         self.init_test_model(args, logger)
     
         self.args = args
@@ -136,21 +140,20 @@ class Task:
 
         self.init_select_clients()
         
-        global_weights= copy.deepcopy(self.global_model.state_dict())
-        accu= self.evaluate_model(global_weights)
-        print(f"{self.task_id} accuracy {accu}")
+        self.global_weights= copy.deepcopy(self.global_model.state_dict())
+        accu= self.evaluate_model(self.global_weights)
+
+        print(f"[Task {self.task_id}] target_labels: {target_labels}, accuracy {accu}")
 
         self.train_loss, self.train_accuracy = [], []
 
         self.accuracy_per_update = [accu]
+        self.loss_before_step = None
 
     def train_one_round(self):
         
         self.local_weights, local_losses = [], []
         self.global_model.train()
-
-        ### NOTE: deepcopy must be used here, or global_weights_before would change according to the weights in global_model
-        global_weights_before = copy.deepcopy(self.global_model.state_dict())
 
         for idx in range(len(self.selected_client_idx)):
             ### Here idx is NOT the client idx
@@ -160,16 +163,12 @@ class Task:
             local_losses.append(copy.deepcopy(loss))
         
         ### Update global weights
-        global_weights = average_weights(self.local_weights)
+        self.global_weights = average_weights(self.local_weights)
         # Load global weights to the global model
-        self.global_model.load_state_dict(global_weights)
-
-        if self.args.policy == "momentum":
-            self.client_state.update_proj_list(self.selected_client_idx,
-                global_weights, global_weights_before, self.local_weights)
+        self.global_model.load_state_dict(self.global_weights)
 
         # print global training loss after every 'i' rounds
-        if (self.epoch+1) % PRINT_EVERY == 0:
+        if (self.step+1) % PRINT_EVERY == 0:
             loss_avg = sum(local_losses) / len(local_losses)
             self.train_loss.append(loss_avg)
 
@@ -177,12 +176,14 @@ class Task:
             list_acc, list_loss = [], []
             self.global_model.eval()
             
-            accu= self.evaluate_model(global_weights)
+            accu= self.evaluate_model(self.global_weights)
             self.train_accuracy.append(accu)
             # print(f' \nlist acc {list_acc} ')
             
             print(f'[Task {self.task_id}] Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {self.train_loss[-1]:.3f}'
              f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {self.selected_client_idx}')
+        
+        self.step += 1
     
     def init_test_model(self, args, logger):
         self.test_model = VirtualClient(
@@ -279,6 +280,21 @@ class Task:
             # check_dist(f"client: {client_idx}", self.all_clients[client_idx])
             # check_dist(f"task {self.task_id}, client:{client_idx}, Target labels {self.target_labels}",
             #     self.selected_clients[-1].dataset)
+        
+        ### NOTE: deepcopy must be used here, or global_weights_before would change according to the weights in global_model
+        self.global_weights_before = copy.deepcopy(self.global_model.state_dict())
+
+        self.cient_update_cnt += 1
+
+    def update_proj_list(self):
+        self.accuracy_per_update.append(self.train_accuracy[-1])
+        if self.accuracy_per_update[-1] > self.accuracy_per_update[-2]:
+            ### Better accuracy, larger projection is better
+            pass
+        else:
+            ### Worse accuracy, smaller projection is better
+            self.client_state.update_proj_list(self.selected_client_idx, self.global_weights,
+                self.global_weights_before, self.local_weights, self.cient_update_cnt, reverse=True)
 
     @property
     def delta_accu(self):

@@ -1,8 +1,8 @@
 import numpy as np
 import random
 
-STEP_NUM = 1
-PRINT_EVERY = 1
+STEP_NUM = 10
+PRINT_EVERY = 10
 
 assert PRINT_EVERY <= STEP_NUM
 

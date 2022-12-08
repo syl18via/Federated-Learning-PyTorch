@@ -62,6 +62,7 @@ if __name__ == '__main__':
     ############################### Task ###########################################
     ### Initialize the global model parameters for both tasks
     ### At the first epoch, both tasks select all clients
+    print("\nInitialize tasks ... ")
     task_list = []
     def create_task(selected_client_idx, required_client_num, bid_per_loss_delta,
             target_labels=None, test_required_dist=None):
@@ -115,17 +116,15 @@ if __name__ == '__main__':
     total_reward_list = []
     succ_cnt_list = []
     reward_sum=[]
-    
+    print("\nStart training ...")
     for epoch in range(EPOCH_NUM):
         for task in task_list:
             task.epoch = epoch
+        print()
         for round_idx in range(STEP_NUM):
             ### Train the model parameters distributedly
             for task in task_list:
                 task.train_one_round()
-        for task in task_list:
-            task.accuracy_per_update.append(task.train_accuracy[-1])
-
 
         ### At the end of this epoch
         if args.policy == "shap":
