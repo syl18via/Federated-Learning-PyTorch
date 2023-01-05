@@ -167,6 +167,8 @@ class VirtualClient:
 
             self.model.zero_grad()
             log_probs = self.model(images)
+            value, indices = torch.max(log_probs,1)
+            print(indices)
             # import code
             # code.interact(local=locals())
             loss = self.criterion(log_probs, labels)

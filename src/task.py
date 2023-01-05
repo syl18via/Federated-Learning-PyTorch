@@ -18,12 +18,15 @@ from client import VirtualClient
 from svfl import calculate_sv
 from util import PRINT_EVERY
 
+INF_INTEGER = 1000000
+
 class ClientState:
     ''' Store statistic information for all clients, which is used for client selection'''
     def __init__(self, num_users):
         self.client2proj = np.array([-math.inf] * num_users)
         # 在这个类的定义里面新建一个变量 用来存shapley value
         self.sv = np.array([-math.inf] * num_users)
+        self.client2selected_cnt = np.array([0] * num_users)
     
     def update_proj_list(self, idxs_users, global_weights, global_weights_before, local_weights, update_cnt, reverse=False):
         #calculate projection of client local gradient on global gradient
@@ -49,7 +52,7 @@ class ClientState:
                 # print(type(g_norm), g_norm.shape)
                 local_grad = clientid_to_grad[idx][key].flatten()
                 try:
-                    proj_dict[key]= _weight * np.dot(local_grad, _global_grad) / g_norm
+                    proj_dict[key]= 1 / (1 + math.exp(-_weight * np.dot(local_grad, _global_grad) / g_norm))
                 except:
                     import code; code.interact(local=locals())
             if update_cnt == 1:
@@ -141,6 +144,7 @@ class Task:
         self.init_select_clients()
         
         self.global_weights= copy.deepcopy(self.global_model.state_dict())
+        self.init_weights = self.global_weights
         self.accu = self.evaluate_model(self.global_weights)
 
         print(f"[Task {self.task_id}] target_labels: {target_labels}, accuracy {self.accu}")
@@ -286,15 +290,45 @@ class Task:
 
         self.cient_update_cnt += 1
 
+        _selected_clients = list(self.selected_client_idx)
+        self.client_state.client2selected_cnt[_selected_clients] += 1
+
     def update_proj_list(self):
         self.accuracy_per_update.append(self.accu)
+
         if self.accuracy_per_update[-1] > self.accuracy_per_update[-2]:
             ### Better accuracy, larger projection is better
-            pass
+            self.client_state.update_proj_list(self.selected_client_idx, self.global_weights,
+                self.global_weights_before, self.local_weights, self.cient_update_cnt, reverse=False)
         else:
             ### Worse accuracy, smaller projection is better
             self.client_state.update_proj_list(self.selected_client_idx, self.global_weights,
                 self.global_weights_before, self.local_weights, self.cient_update_cnt, reverse=True)
+
+        n = 5
+        pre_train_step_num = 10
+        if len(self.accuracy_per_update) < pre_train_step_num:
+            return
+        tmp = np.array(self.accuracy_per_update[-n:])
+        if np.std(tmp) == 0 and self.accuracy_per_update[-1] < 0.5:
+            from util import bcolors
+            # Load global weights to the global model
+            self.global_model.load_state_dict(self.init_weights)
+            # self.client_state.client2proj = - self.client_state.client2proj
+
+            ### Forbid clients
+            # import code
+            # code.interact(local=locals())
+
+            # forbidden_clients = np.argsort(self.client_state.client2selected_cnt)[-len(self.selected_client_idx):]
+            # self.client_state.client2selected_cnt[list(forbidden_clients)] = -INF_INTEGER
+            # self.client_state.client2proj[list(np.where(self.client_state.client2selected_cnt == -INF_INTEGER)[0])] = -np.inf
+
+            self.client_state.client2proj *= (1 - self.client_state.client2selected_cnt / sum(self.client_state.client2selected_cnt))
+
+            self.client_state.client2selected_cnt = np.zeros_like(self.client_state.client2selected_cnt)
+
+            print(bcolors.CYELLOW + f"[Task {self.task_id}] Stucked" + bcolors.ENDC)
 
     @property
     def delta_accu(self):
