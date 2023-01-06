@@ -27,8 +27,12 @@ class ClientState:
         # 在这个类的定义里面新建一个变量 用来存shapley value
         self.sv = np.array([-math.inf] * num_users)
         self.client2selected_cnt = np.array([0] * num_users)
+
+        self.client2rewards = []
+        for _ in range(num_users):
+            self.client2rewards.append([0])
     
-    def update_proj_list(self, idxs_users, global_weights, global_weights_before, local_weights, update_cnt, reverse=False):
+    def update_proj_list(self, idxs_users, global_weights, global_weights_before, local_weights, update_cnt, improved=1):
         #calculate projection of client local gradient on global gradient
         global_grad={}
         for key in global_weights.keys():
@@ -41,8 +45,8 @@ class ClientState:
                 clientid_to_grad[idx][key] = (local_weights[i][key]- global_weights_before[key]).data.cpu().numpy()
 
         assert update_cnt > 0
-        _weight = -1 if reverse else 1
         # print(f"The {update_cnt}-th update to the projection list")
+        idxs_proj = []
         for idx in idxs_users:
             #### Method 2
             proj_dict = {}
@@ -51,15 +55,19 @@ class ClientState:
                 g_norm = np.sqrt(sum(_global_grad**2))
                 # print(type(g_norm), g_norm.shape)
                 local_grad = clientid_to_grad[idx][key].flatten()
-                try:
-                    proj_dict[key]= 1 / (1 + math.exp(-_weight * np.dot(local_grad, _global_grad) / g_norm))
-                except:
-                    import code; code.interact(local=locals())
-            if update_cnt == 1:
-                self.client2proj[idx] = np.array(list(proj_dict.values())).mean()
-            else:
-                self.client2proj[idx] = ((update_cnt - 1)/ update_cnt) * self.client2proj[idx] + \
-                        (1 / update_cnt) * np.array(list(proj_dict.values())).mean()
+                proj_dict[key]= np.dot(local_grad, _global_grad) / g_norm
+            
+            idxs_proj.append(np.array(list(proj_dict.values())).mean())
+        
+        # print("Imporved ?", improved, "projection", idxs_proj)
+        # import pdb; pdb.set_trace()
+        final_reward = torch.nn.Softmax(dim=0)(torch.Tensor(idxs_proj)) * improved
+        # print("projection after softmax", final_reward)
+        for client_idx, reward in zip(idxs_users, (final_reward)):
+            self.client2rewards[client_idx].append((reward))
+
+        for client_idx in range(len(self.client2proj)):
+            self.client2proj[client_idx] = np.mean(self.client2rewards[client_idx])
     
 
 def fed_avg(client2weights):
@@ -298,37 +306,40 @@ class Task:
 
         if self.accuracy_per_update[-1] > self.accuracy_per_update[-2]:
             ### Better accuracy, larger projection is better
-            self.client_state.update_proj_list(self.selected_client_idx, self.global_weights,
-                self.global_weights_before, self.local_weights, self.cient_update_cnt, reverse=False)
+            improved = 1
+        elif self.accuracy_per_update[-1] == self.accuracy_per_update[-2]:
+            improved = 0
         else:
             ### Worse accuracy, smaller projection is better
-            self.client_state.update_proj_list(self.selected_client_idx, self.global_weights,
-                self.global_weights_before, self.local_weights, self.cient_update_cnt, reverse=True)
+            improved = -1
 
-        n = 5
-        pre_train_step_num = 10
-        if len(self.accuracy_per_update) < pre_train_step_num:
-            return
-        tmp = np.array(self.accuracy_per_update[-n:])
-        if np.std(tmp) == 0 and self.accuracy_per_update[-1] < 0.5:
-            from util import bcolors
-            # Load global weights to the global model
-            self.global_model.load_state_dict(self.init_weights)
-            # self.client_state.client2proj = - self.client_state.client2proj
+        self.client_state.update_proj_list(self.selected_client_idx, self.global_weights,
+                self.global_weights_before, self.local_weights, self.cient_update_cnt, improved=improved)
+        
+        # n = 5
+        # pre_train_step_num = 10
+        # if len(self.accuracy_per_update) < pre_train_step_num:
+        #     return
+        # tmp = np.array(self.accuracy_per_update[-n:])
+        # if np.std(tmp) == 0 and self.accuracy_per_update[-1] < 0.5:
+        #     from util import bcolors
+        #     # Load global weights to the global model
+        #     self.global_model.load_state_dict(self.init_weights)
+        #     # self.client_state.client2proj = - self.client_state.client2proj
 
-            ### Forbid clients
-            # import code
-            # code.interact(local=locals())
+        #     ### Forbid clients
+        #     # import code
+        #     # code.interact(local=locals())
 
-            # forbidden_clients = np.argsort(self.client_state.client2selected_cnt)[-len(self.selected_client_idx):]
-            # self.client_state.client2selected_cnt[list(forbidden_clients)] = -INF_INTEGER
-            # self.client_state.client2proj[list(np.where(self.client_state.client2selected_cnt == -INF_INTEGER)[0])] = -np.inf
+        #     # forbidden_clients = np.argsort(self.client_state.client2selected_cnt)[-len(self.selected_client_idx):]
+        #     # self.client_state.client2selected_cnt[list(forbidden_clients)] = -INF_INTEGER
+        #     # self.client_state.client2proj[list(np.where(self.client_state.client2selected_cnt == -INF_INTEGER)[0])] = -np.inf
 
-            self.client_state.client2proj *= (1 - self.client_state.client2selected_cnt / sum(self.client_state.client2selected_cnt))
+        #     self.client_state.client2proj *= (1 - self.client_state.client2selected_cnt / sum(self.client_state.client2selected_cnt))
 
-            self.client_state.client2selected_cnt = np.zeros_like(self.client_state.client2selected_cnt)
+        #     self.client_state.client2selected_cnt = np.zeros_like(self.client_state.client2selected_cnt)
 
-            print(bcolors.CYELLOW + f"[Task {self.task_id}] Stucked" + bcolors.ENDC)
+        #     print(bcolors.CYELLOW + f"[Task {self.task_id}] Stucked" + bcolors.ENDC)
 
     @property
     def delta_accu(self):
