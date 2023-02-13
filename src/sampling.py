@@ -5,6 +5,12 @@
 import numpy as np
 from torchvision import datasets, transforms
 from typing import Union, Dict
+from collections import Counter
+
+def check_dist(name, _dataset):
+    _, lables = zip(*list((_dataset)))
+    lables = [int(x) for x in lables]
+    print(f"{name}, distribution: {Counter(lables)}")
 
 def mnist_iid(dataset, num_users):
     """
@@ -319,7 +325,6 @@ def get_dataset(args):
     """
 
     if args.dataset == 'cifar':
-        raise
         data_dir = '../data/cifar/'
         apply_transform = transforms.Compose(
             [transforms.ToTensor(),
@@ -330,7 +335,9 @@ def get_dataset(args):
 
         test_dataset = datasets.CIFAR10(data_dir, train=False, download=True,
                                       transform=apply_transform)
-                                      
+
+        check_dist("Cifar Train", train_dataset)
+        check_dist("Cifar Test", test_dataset)           
 
         # sample training data amongst users
         if args.iid:

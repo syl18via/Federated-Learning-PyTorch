@@ -2,11 +2,10 @@ import numpy as np
 import copy
 import torch
 from torch import nn
-from collections import Counter
 
 from utils import DatasetSplit, DatasetRelabel
 from torch.utils.data import DataLoader
-from sampling import get_dataset
+from sampling import get_dataset, check_dist
 
 def test_inference(use_gpu, model, test_dataset):
     """ Returns the test accuracy and loss.
@@ -50,11 +49,6 @@ class Client(DatasetSplit):
                 self.lable2data_idxs[label] = []
             self.lable2data_idxs[label].append(idx_of_split)
 
-
-def check_dist(name, _dataset):
-    _, lables = zip(*list((_dataset)))
-    lables = [int(x) for x in lables]
-    print(f"{name}, distribution: {Counter(lables)}")
 
 def get_clients(args):
     train_dataset, test_dataset, user_groups = get_dataset(args)
