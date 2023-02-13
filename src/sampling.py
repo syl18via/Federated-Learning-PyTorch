@@ -144,12 +144,11 @@ def load_custom_dataset(dataset, num_users):
     counter = check_dist("Origin Dataset", dataset)
 
     total_data_size = sum(counter.values())
-    data_size_per_client = int(total_data_size / 10)
 
-    ### Assume ach client has the same size of data
-    CLIENT_DATA_NUM = [data_size_per_client] * 10
+    ### Assume each client has the same size of data
+    data_size_per_client = int(total_data_size / CLIENT_NUM)
+    CLIENT_DATA_NUM = [data_size_per_client] * CLIENT_NUM
 
-    # 60,000 training imgs -->  200 imgs/shard X 300 shards
     client2dataidxs: Dict[int, np.ndarray] = {i: np.array([]) for i in range(num_users)}
 
     # Group labels
