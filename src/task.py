@@ -153,13 +153,14 @@ class Task:
         
         self.global_weights= copy.deepcopy(self.global_model.state_dict())
         self.init_weights = self.global_weights
-        self.accu = self.evaluate_model(self.global_weights)
+        self.accu, self.loss = self.evaluate_model(self.global_weights)
 
         print(f"[Task {self.task_id}] target_labels: {target_labels}, accuracy {self.accu}")
 
         self.train_loss, self.train_accuracy = [], []
 
         self.accuracy_per_update = [self.accu]
+        self.loss_per_update = [self.loss]
         self.loss_before_step = None
 
     def train_one_round(self):
@@ -188,7 +189,7 @@ class Task:
             list_acc, list_loss = [], []
             self.global_model.eval()
             
-            self.accu= self.evaluate_model(self.global_weights)
+            self.accu, self.loss = self.evaluate_model(self.global_weights)
             self.train_accuracy.append(self.accu)
             # print(f' \nlist acc {list_acc} ')
             
@@ -220,8 +221,11 @@ class Task:
             self.test_model.load_weights(self.global_model.state_dict())
         else:
             self.test_model.load_weights(weights)
-        accu, losss = self.test_model.inference(self.test_model.dataset)
-        return accu
+        accu, loss = self.test_model.inference(self.test_model.dataset)
+        return accu, loss
+
+    def evaluate_model_accu(self, weights=None):
+        return self.evaluate_model(weights = weights)[0]
    
     def log(self, *args, **kwargs):
         print("[Task {} - epoch {}]: ".format(self.task_id, self.epoch), *args, **kwargs)
@@ -265,7 +269,7 @@ class Task:
 
         client2weights = dict([(self.selected_client_idx[i], self.local_weights[i]) for i in range(len(self.selected_client_idx))])
         print(f"Calculate shaple value for {len(self.selected_client_idx)} clients")
-        sv = calculate_sv(client2weights, self.evaluate_model, fed_avg)
+        sv = calculate_sv(client2weights, self.evaluate_model_accu, fed_avg)
         return sv
 
     def end_train( self, args, test_client, start_time):
@@ -303,12 +307,18 @@ class Task:
 
     def update_proj_list(self):
         self.accuracy_per_update.append(self.accu)
+        self.loss_per_update.append(self.loss)
 
         if self.accuracy_per_update[-1] > self.accuracy_per_update[-2]:
             ### Better accuracy, larger projection is better
             improved = 1
         elif self.accuracy_per_update[-1] == self.accuracy_per_update[-2]:
-            improved = 0
+            if self.loss_per_update[-1] < self.loss_per_update[-2]:
+                improved = 0.5
+            elif self.loss_per_update[-1] > self.loss_per_update[-2]:
+                improved = -0.5
+            else: 
+                improved = 0
         else:
             ### Worse accuracy, smaller projection is better
             improved = -1

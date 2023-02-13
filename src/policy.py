@@ -1,7 +1,7 @@
 import numpy as np
 import random 
 import util
-
+import pdb
 
 ### By default,  IGNORE_BID_ASK is False, only when the buyer bid is larger that the client ask
 #   the client can be selected by this task.
@@ -217,8 +217,8 @@ def simple_select_clients(num_of_client, task_list, reverse=False):
     free_client = [True] * num_of_client
     succ_cnt = 0
 
-    task_list[0].selected_client_idx = [1, 6]
-    task_list[1].selected_client_idx = [2, 3]
+    task_list[0].selected_client_idx = [1, 5]
+    task_list[1].selected_client_idx = [2, 4]
     # print("Clients {} are assined to task {}".format(selected_client_index, _task.task_id))
     task_list[0].init_select_clients()
     task_list[1].init_select_clients()
@@ -297,6 +297,7 @@ def even_select_clients(ask_table, client_feature_list, task_list, bid_table, up
     return succ_cnt, reward
 
 def momentum_select_clients(num_of_client, task_list):
+    # pdb.set_trace()
     free_client = [True] * num_of_client
     succ_cnt = 0
     # import pdb; pdb.set_trace()
@@ -312,7 +313,7 @@ def momentum_select_clients(num_of_client, task_list):
         assert isinstance(momemtum_based_grad_proj, list) or isinstance(momemtum_based_grad_proj, np.ndarray)
         assert len(momemtum_based_grad_proj) == num_of_client
 
-        alpha = 0.5
+        alpha = 0.1
         momemtum_based_grad_proj = np.array(momemtum_based_grad_proj)
         ucb = momemtum_based_grad_proj + alpha * np.sqrt((2 * np.log(_task.cient_update_cnt))/_task.client_state.client2selected_cnt)
         # print("ucb", ucb)

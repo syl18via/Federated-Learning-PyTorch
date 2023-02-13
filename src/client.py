@@ -13,7 +13,7 @@ def test_inference(use_gpu, model, test_dataset):
     """
 
     model.eval()
-    loss, total, correct = 0.0, 0.0, 0.0
+    loss, total, correct = [], 0.0, 0.0
 
     device = 'cuda' if use_gpu else 'cpu'
     criterion = nn.NLLLoss().to(device)
@@ -25,7 +25,7 @@ def test_inference(use_gpu, model, test_dataset):
         # Inference
         outputs = model(images)
         batch_loss = criterion(outputs, labels)
-        loss += batch_loss.item()
+        loss.append(batch_loss.item()) 
 
         # Prediction
         _, pred_labels = torch.max(outputs, 1)
@@ -34,7 +34,7 @@ def test_inference(use_gpu, model, test_dataset):
         total += len(labels)
 
     accuracy = correct/total
-    return accuracy, loss
+    return accuracy, sum(loss)/len(loss)
 
 class Client(DatasetSplit):
     def __init__(self, id, dataset, data_idxs):

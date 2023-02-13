@@ -27,7 +27,7 @@ random.seed(0)
 ### Experiment Configs
 MIX_RATIO = 0.8
 SIMULATE = False
-EPOCH_NUM = 200
+EPOCH_NUM = 300
 TRIAL_NUM = 1
 TASK_NUM = 2
 
@@ -38,13 +38,19 @@ required_client_num_space = [2]
 # target_labels_space = [list(range(5)),list(range(5,10))]
 
 target_labels_space = [
-    [3, 6, 9],
-    [2, 8, 7]
+    [1,4,5,3,6,9],
+    [2,8,7,1,4,5]
+#     [3,6,9],
+#     [2,8,7]
 ]
 
 test_required_dist_space = [
-    [30, 30, 30],
-    [30, 30, 30]
+    [15,15,15,15,15,15],
+    [15,15,15,15,15,15]
+    # [30,30,30],
+    # [30,30,30]
+    # [25,25,25],
+    # [25,25,25]
 ]
 
 
