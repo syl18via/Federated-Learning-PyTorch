@@ -146,7 +146,7 @@ class VirtualClient:
 
         # for iter in range(self.args.local_ep):
         batch_loss = []
-        num_batch = 1
+        num_batch = 100
         for batch_idx in range(num_batch):
             try:
                 images, labels = next(self.trainloader_iter)
@@ -178,7 +178,7 @@ class VirtualClient:
             #         f"({100. * self.local_step / len(self.trainloader):.0f}%)]\t"
             #         f"Loss: {loss.item():.6f}, accu={100*accu:.3f}%")
 
-            self.logger.add_scalar('loss', loss.item())
+            # self.logger.add_scalar('loss', loss.item())
             batch_loss.append(loss.item())
 
         return self.model.state_dict(), sum(batch_loss) / len(batch_loss)

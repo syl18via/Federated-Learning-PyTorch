@@ -348,7 +348,7 @@ def get_dataset(args):
         # check_dist("Cifar Test", test_dataset)           
 
         # sample training data amongst users
-        if True:
+        if False:
             client2dataidxs = load_custom_dataset(dataset=train_dataset, num_users=args.num_users)
         elif args.iid:
             # Sample IID user data from Mnist
@@ -379,7 +379,7 @@ def get_dataset(args):
                                       transform=apply_transform)
 
         # sample training data amongst users
-        if True:
+        if False:
             client2dataidxs = load_custom_dataset(dataset=train_dataset, num_users=args.num_users)
         elif args.halfiid:
             client2dataidxs = mnist_iid_noniid(train_dataset, args.num_users)

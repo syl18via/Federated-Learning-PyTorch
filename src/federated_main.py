@@ -11,7 +11,7 @@ from task import Task
 import util
 
 import torch
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from svfl import calculate_sv
 from options import args_parser
@@ -24,33 +24,35 @@ np.random.seed(1)
 torch.manual_seed(0)
 random.seed(0)
 
-### Experiment Configs
+### Experiment Configsc
 MIX_RATIO = 0.8
 SIMULATE = False
-EPOCH_NUM = 300
+EPOCH_NUM = 500
 TRIAL_NUM = 1
-TASK_NUM = 2
+TASK_NUM = 1
 
 
 bid_per_loss_delta_space = [1]
-required_client_num_space = [2]
+required_client_num_space = [1]
 # target_labels_space = [[0,5],[1,4]]
 # target_labels_space = [list(range(5)),list(range(5,10))]
 
 target_labels_space = [
-    [1,4,5,3,6,9],
-    [2,8,7,1,4,5]
+    # [1,4,5,3,6,9],
+    # [2,8,7,1,4,5]
 #     [3,6,9],
-#     [2,8,7]
+#    [2,8,7]
+[0,1,2,3,4,5,6,7,8]
 ]
 
 test_required_dist_space = [
-    [15,15,15,15,15,15],
-    [15,15,15,15,15,15]
+    # [15,15,15,15,15,15],
+    # [15,15,15,15,15,15]
     # [30,30,30],
     # [30,30,30]
     # [25,25,25],
     # [25,25,25]
+    [10,10,10,10,10,10,10,10,10]
 ]
 
 
@@ -72,7 +74,7 @@ if __name__ == '__main__':
     task_list = []
     def create_task(selected_client_idx, required_client_num, bid_per_loss_delta,
             target_labels=None, test_required_dist=None):
-        task = Task(args,logger,train_dataset, test_client, all_clients,
+        task = Task(args, logger, train_dataset, test_client, all_clients,
             task_id = len(task_list),
             selected_client_idx=selected_client_idx,
             required_client_num=required_client_num,

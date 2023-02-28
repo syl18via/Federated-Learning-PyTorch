@@ -5,10 +5,11 @@ import pickle
 import numpy as np
 from tqdm import tqdm
 import math
+import datetime
 
 
 import torch
-from tensorboardX import SummaryWriter
+import torchvision
 
 from options import args_parser
 from client import test_inference
@@ -77,7 +78,7 @@ def fed_avg(client2weights):
 
 class Task:
     def __init__(self, args,
-            logger,train_dataset, test_client, all_clients,
+            logger, train_dataset, test_client, all_clients,
             task_id, selected_client_idx,
             required_client_num=None,
             bid_per_loss_delta=None,
@@ -108,6 +109,7 @@ class Task:
             elif args.dataset == 'fmnist':
                 self.global_model = CNNFashion_Mnist(args=args, class_num=class_num)
             elif args.dataset == 'cifar':
+                # self.global_model = torchvision.models.resnet50()
                 self.global_model = CNNCifar(args=args, class_num=class_num)
             else:
                 raise ValueError(f"Invalid dataset {args.dataset}")
@@ -163,6 +165,8 @@ class Task:
         self.loss_per_update = [self.loss]
         self.loss_before_step = None
 
+        self.start_time = time.time()
+
     def train_one_round(self):
         
         self.local_weights, local_losses = [], []
@@ -193,7 +197,10 @@ class Task:
             self.train_accuracy.append(self.accu)
             # print(f' \nlist acc {list_acc} ')
             
-            print(f'[Task {self.task_id}] Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {self.train_loss[-1]:.3f}'
+            self.logger.add_scalar(f'Task{self.task_id}/Loss', self.train_loss[-1], global_step=self.epoch)
+            self.logger.add_scalar(f'Task{self.task_id}/Accu.', self.train_accuracy[-1], global_step=self.epoch)
+            self.logger.flush()
+            print(f'[{datetime.datetime.now().__format__("%H:%M:%S")} ({time.time() - self.start_time:.3f})s] Task {self.task_id}, Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {self.train_loss[-1]:.3f}'
              f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {self.selected_client_idx}')
         
         self.step += 1
