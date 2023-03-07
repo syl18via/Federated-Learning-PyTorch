@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Example: bash script/train.sh momentum show --dataset=cifar --iid=1 --num_users=1
+
 policy=$1
 
 if [[ $2 == "pdb" ]]; then
