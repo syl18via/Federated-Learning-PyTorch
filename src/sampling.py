@@ -379,7 +379,7 @@ def get_dataset(args):
                                       transform=apply_transform)
 
         # sample training data amongst users
-        if False:
+        if True:
             client2dataidxs = load_custom_dataset(dataset=train_dataset, num_users=args.num_users)
         elif args.halfiid:
             client2dataidxs = mnist_iid_noniid(train_dataset, args.num_users)

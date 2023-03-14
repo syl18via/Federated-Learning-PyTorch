@@ -86,8 +86,8 @@ class Task:
             test_required_dist=None
             ):
 
-        if args.gpu:
-            torch.cuda.set_device(args.gpu)
+        # if args.gpu:
+        #     torch.cuda.set_device(args.gpu)
         device = 'cuda' if args.gpu else 'cpu'
 
         # load dataset and user groups
