@@ -280,7 +280,7 @@ class Task:
 
     def end_train( self, args, test_client, start_time):
         # Test inference after completion of training
-        test_acc, test_loss = test_inference(args.gpu is not None, self.global_model, test_client)
+        test_acc, test_loss = test_inference(args, self.global_model, test_client)
 
         print(f' \n Task {self.task_id}: Results after {args.epochs} global rounds of training:')
         print("|---- Avg Train Accuracy: {:.2f}%".format(100*self.train_accuracy[-1]))

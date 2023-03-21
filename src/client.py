@@ -209,4 +209,4 @@ class VirtualClient:
     def inference(self, dataset):
         """ Returns the inference accuracy and loss.
         """
-        return test_inference(self.args.gpu is not None, self.model, dataset)
+        return test_inference(self.args, self.model, dataset)
