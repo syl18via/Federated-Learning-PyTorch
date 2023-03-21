@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from sampling import get_dataset
 from options import args_parser
 from client import test_inference
-from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
+from nets import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar, find_models
 
 
 if __name__ == '__main__':

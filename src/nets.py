@@ -5,6 +5,13 @@
 from torch import nn
 import torch.nn.functional as F
 
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), "3rdparty/pytorch-cifar"))
+import models
+
+MODEL_DICT = {
+    "SimpleDLA": models.SimpleDLA
+}
 
 class MLP(nn.Module):
     def __init__(self, dim_in, dim_hidden, dim_out):
@@ -118,3 +125,24 @@ class modelC(nn.Module):
         pool_out.squeeze_(-1)
         pool_out.squeeze_(-1)
         return pool_out
+
+def find_models(model_name="SimpleDLA"):
+    # net = VGG('VGG19')
+    # net = ResNet18()
+    # net = PreActResNet18()
+    # net = GoogLeNet()
+    # net = DenseNet121()
+    # net = ResNeXt29_2x64d()
+    # net = MobileNet()
+    # net = MobileNetV2()
+    # net = DPN92()
+    # net = ShuffleNetG2()
+    # net = SENet18()
+    # net = ShuffleNetV2(1)
+    # net = EfficientNetB0()
+    # net = RegNetX_200MF()
+    if model_name == "SimpleDLA":
+        net = models.SimpleDLA()
+    else:
+        raise ValueError("Invalid model_name")
+    return net

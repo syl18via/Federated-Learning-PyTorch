@@ -7,13 +7,13 @@ from tqdm import tqdm
 import math
 import datetime
 
-
 import torch
 import torchvision
+import torch.backends.cudnn as cudnn
 
 from options import args_parser
 from client import test_inference
-from models import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar
+from nets import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar, find_models
 from utils import average_weights, exp_details
 from client import VirtualClient
 from svfl import calculate_sv
@@ -110,7 +110,8 @@ class Task:
                 self.global_model = CNNFashion_Mnist(args=args, class_num=class_num)
             elif args.dataset == 'cifar':
                 # self.global_model = torchvision.models.resnet50()
-                self.global_model = CNNCifar(args=args, class_num=class_num)
+                # self.global_model = CNNCifar(args=args, class_num=class_num)
+                self.global_model = find_models()
             else:
                 raise ValueError(f"Invalid dataset {args.dataset}")
         elif args.model == 'mlp':
@@ -125,13 +126,11 @@ class Task:
             exit('Error: unrecognized model')
 
         # Set the model to train and send it to device.
-        # print(args.model)
-        # print(args.dataset)
         self.global_model.to(device)
+        if device == 'cuda':
+            self.global_model = torch.nn.DataParallel(self.global_model)
+            cudnn.benchmark = True
         self.global_model.train()
-        
-        # print(self.global_model)
-        
 
         self.selected_client_idx = selected_client_idx    # a list of client indexes of selected clients
         self.task_id = task_id
