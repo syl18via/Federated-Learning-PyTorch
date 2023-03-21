@@ -1,21 +1,28 @@
 import numpy as np
 import copy
+
 import torch
 from torch import nn
+import torch.optim as optim
 
 from utils import DatasetSplit, DatasetRelabel
 from torch.utils.data import DataLoader
 from sampling import get_dataset, check_dist
 
-def test_inference(use_gpu, model, test_dataset):
+def test_inference(args, model, test_dataset):
     """ Returns the test accuracy and loss.
     """
 
     model.eval()
     loss, total, correct = [], 0.0, 0.0
 
-    device = 'cuda' if use_gpu else 'cpu'
-    criterion = nn.NLLLoss().to(device)
+    device = 'cuda' if args.gpu is not None else 'cpu'
+
+    if args.dataset == 'cifar':
+        criterion = nn.CrossEntropyLoss()
+    else:
+        criterion = nn.NLLLoss().to(device)
+        
     testloader = DataLoader(test_dataset, batch_size=128, shuffle=False)
 
     for batch_idx, (images, labels) in enumerate(testloader):
@@ -95,19 +102,28 @@ class VirtualClient:
 
         self.trainloader_iter = iter(self.trainloader)
         self.device = 'cuda' if args.gpu else 'cpu'
-        # Default criterion set to NLL loss function
-        self.criterion = nn.NLLLoss().to(self.device)
         self.target_labels = target_labels
         self.model = None
         self.load_weights(global_model)
         self.local_step = 0
-        # Set optimizer for the local updates
-        if self.args.optimizer == 'sgd':
-            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.args.lr,
-                                        momentum=0.5)
-        elif self.args.optimizer == 'adam':
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr,
-                                         weight_decay=1e-4)
+       
+        if args.dataset == 'cifar':
+            self.criterion = nn.CrossEntropyLoss()
+            self.optimizer = optim.SGD(self.model.parameters(), lr=self.args.lr,
+                                momentum=0.9, weight_decay=5e-4)
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200)
+
+        else:
+            # Default criterion set to NLL loss function
+            self.criterion = nn.NLLLoss().to(self.device)
+        
+            # Set optimizer for the local updates
+            if self.args.optimizer == 'sgd':
+                self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.args.lr,
+                                            momentum=0.5)
+            elif self.args.optimizer == 'adam':
+                self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.args.lr,
+                                            weight_decay=1e-4)
     
     def train_val_test(self, dataset):
         """
@@ -158,14 +174,21 @@ class VirtualClient:
             # print(labels, self.target_labels)
             images, labels = images.to(self.device), labels.to(self.device)
 
+            if self.args.dataset == 'cifar':
+                self.optimizer.zero_grad()
+            else:
+                self.model.zero_grad()
 
-            self.model.zero_grad()
-            log_probs = self.model(images)
-            value, indices = torch.max(log_probs,1)
-            # print("Predicted values", indices)
-            # import code
-            # code.interact(local=locals())
-            loss = self.criterion(log_probs, labels)
+            outputs = self.model(images)
+
+            if self.args.dataset == 'cifar':
+                loss = self.criterion(outputs, labels)
+            else:
+                value, indices = torch.max(outputs,1)
+                # print("Predicted values", indices)
+                # import code
+                # code.interact(local=locals())
+                loss = self.criterion(outputs, labels)
             loss.backward()
             self.optimizer.step()
 
@@ -186,4 +209,4 @@ class VirtualClient:
     def inference(self, dataset):
         """ Returns the inference accuracy and loss.
         """
-        return test_inference(self.args.gpu is not None, self.model, dataset)
+        return test_inference(self.args, self.model, dataset)
