@@ -6,6 +6,7 @@ import os
 import time
 import numpy as np
 import random
+from datetime import datetime
 
 from task import Task
 import util
@@ -61,9 +62,11 @@ if __name__ == '__main__':
 
     # define paths
     path_project = os.path.abspath('..')
-    logger = SummaryWriter('../logs')
-
+    
     args = args_parser()
+
+    now = datetime.now() # current date and time
+    logger = SummaryWriter(f'../logs/{now.strftime("%Y-%m-%d_%H:%M:%S")}-{args.policy}-{args.dataset}-iid={args.iid}-{args.model}-lr_{args.lr}')
     exp_details(args)
     
     train_dataset, test_client, all_clients = get_clients(args)

@@ -307,7 +307,7 @@ def momentum_select_clients(num_of_client, task_list):
         _task.update_proj_list()
 
         ### momemtum_based_grad_proj 是一个list，长度等于 总的client数量，挑出momemtum_based_grad_proj最小的num_users client
-        # 这里client_state 不需要传参了， 因为client_state在这个函数定义之前就已经定义了，函数内部可以直接访问client_state ok？
+        # 这里client_state 不需要传参了， 因为client_state在这个函数定义之前就已经定义了，函数内部可以直接访问client_state 
         momemtum_based_grad_proj = _task.client_state.client2proj
         # print("Proj", momemtum_based_grad_proj)
         assert isinstance(momemtum_based_grad_proj, list) or isinstance(momemtum_based_grad_proj, np.ndarray)
