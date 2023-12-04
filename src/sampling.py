@@ -146,8 +146,15 @@ def load_custom_dataset(dataset, num_users):
     total_data_size = sum(counter.values())
 
     ### Assume each client has the same size of data
-    data_size_per_client = int(total_data_size / CLIENT_NUM)
-    CLIENT_DATA_NUM = [data_size_per_client] * CLIENT_NUM
+    # data_size_per_client = int(total_data_size / CLIENT_NUM)
+    # CLIENT_DATA_NUM = [data_size_per_client] * CLIENT_NUM
+
+
+    ###assume clients have an increasing order of datasize
+    # CLIENT_DATA_RATIO = [0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.12, 0.12, 0.12]
+    CLIENT_DATA_RATIO = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    assert CLIENT_NUM == len(CLIENT_DATA_RATIO)
+    CLIENT_DATA_NUM = [int(ratio * total_data_size) for ratio in CLIENT_DATA_RATIO]
 
     client2dataidxs: Dict[int, np.ndarray] = {i: np.array([]) for i in range(num_users)}
 
@@ -325,6 +332,50 @@ def cifar_noniid(dataset, num_users):
                 (client2dataidxs[i], idxs[rand*num_imgs:(rand+1)*num_imgs]), axis=0)
     return client2dataidxs
 
+
+def load_federated_mnist_dataset(dataset, num_users):
+    """
+    Sample non-I.I.D client data from Federated MNIST dataset
+    :param dataset:
+    :param num_users:
+    :return:
+    """
+
+    counter = check_dist("Origin Dataset", dataset)
+
+    total_data_size = sum(counter.values())
+
+    ### Assume each client has the same size of data
+    data_size_per_client = int(total_data_size / CLIENT_NUM)
+    CLIENT_DATA_NUM = [data_size_per_client] * CLIENT_NUM
+
+    client2dataidxs: Dict[int, np.ndarray] = {i: np.array([]) for i in range(num_users)}
+
+    # Group labels
+    label2idxs = {}
+    for idx, (_, y) in enumerate(dataset):
+        if y not in label2idxs:
+            label2idxs[y] = []
+        label2idxs[y].append(idx)
+
+    ### When traversing all data by label, store the current 
+    # position of the idx list of each label
+    label2bias = [0] * CLASS_NUM
+    
+    for client_id in range(num_users):
+
+        _dist: np.ndarray = CLIENT_DATA_DIST[client_id]
+        _data_num: int = CLIENT_DATA_NUM[client_id]
+        _data_num_per_label: np.ndarray = _dist * _data_num / 100
+
+        for _class_id in range(CLASS_NUM):
+            all_data_idxs_of_this_class: list = label2idxs[_class_id]
+            required_data_num_this_class: int = int(_data_num_per_label[_class_id])
+            required_data_idxs = all_data_idxs_of_this_class[label2bias[_class_id]:(label2bias[_class_id]+required_data_num_this_class)]
+            label2bias[_class_id] += required_data_num_this_class
+            client2dataidxs[client_id] = np.concatenate((client2dataidxs[client_id], required_data_idxs), axis=0)
+
+    return client2dataidxs
 
 def get_dataset(args):
     """ Returns train and test datasets and a user group which is a dict where
