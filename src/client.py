@@ -47,6 +47,7 @@ class Client(DatasetSplit):
         self.id = id
         self.dataset = dataset
         self.idxs = [int(i) for i in data_idxs]
+        self.datasize = len(self.idxs) 
         
         ### Group local data by labels
         self.lable2data_idxs = {}
@@ -93,6 +94,9 @@ class VirtualClient:
             assert isinstance(dataset, Client), type(dataset)
             assert target_labels is not None
             self.dataset = DatasetRelabel(dataset.dataset, dataset.idxs, target_labels, required_dist=required_dist)
+        
+        # Calculate datasize based on the size of the dataset
+        self.datasize = len(self.dataset)
         
         if split:
             self.trainloader, self.validloader, self.testloader = self.train_val_test(self.dataset)

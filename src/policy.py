@@ -2,6 +2,7 @@ import numpy as np
 import random 
 import util
 import pdb
+import copy
 
 ### By default,  IGNORE_BID_ASK is False, only when the buyer bid is larger that the client ask
 #   the client can be selected by this task.
@@ -217,8 +218,8 @@ def simple_select_clients(num_of_client, task_list, reverse=False):
     free_client = [True] * num_of_client
     succ_cnt = 0
 
-    task_list[0].selected_client_idx = [1, 5]
-    task_list[1].selected_client_idx = [2, 4]
+    task_list[0].selected_client_idx = [6, 1]
+    task_list[1].selected_client_idx = [2, 3]
     # print("Clients {} are assined to task {}".format(selected_client_index, _task.task_id))
     task_list[0].init_select_clients()
     task_list[1].init_select_clients()
@@ -265,6 +266,115 @@ def random_select_clients(num_of_client, task_list):
         if is_succ:
             succ_cnt += _task.required_client_num
     return succ_cnt, None
+
+def datasize_select_clients(num_of_client, task_list):
+    succ_cnt = 0
+    free_client = {client_id: True for client_id in range(num_of_client)}  # Initialize free_client outside the loop
+
+    for task_idx, _ in enumerate(task_list):
+        _task = task_list[task_idx]
+       
+        ### Select clients
+        selected_client_index = []
+        clients_candidates = list(range(num_of_client))
+        # Sort clients by datasize in descending order
+        clients_candidates.sort(key=lambda x: _task.all_clients[x].datasize, reverse=True)
+        for client_id in clients_candidates:
+            if free_client[client_id]:  # Check if the client is free
+                is_task_ready = select_one_client(client_id, selected_client_index, free_client, _task)
+                if is_task_ready:
+                    break
+        
+        is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
+        if is_succ:
+            succ_cnt += _task.required_client_num
+            for client_id in selected_client_index:  # Mark selected clients as not free
+                free_client[client_id] = False
+
+    return succ_cnt, None
+
+def greedy_select_clients(num_of_client, task_list, bid_table):
+    succ_cnt = 0
+    free_client = {client_id: True for client_id in range(num_of_client)}  # Initialize free_client outside the loop
+
+    for task_idx, _ in enumerate(task_list):
+        _task = task_list[task_idx]
+       
+        ### Select clients
+        selected_client_index = []
+        clients_candidates = list(range(num_of_client))
+        # Sort clients by datasize/bid_price in descending order
+        clients_candidates.sort(key=lambda x: _task.all_clients[x].datasize / bid_table[x][task_idx], reverse=True)
+        for client_id in clients_candidates:
+            if free_client[client_id]:  # Check if the client is freec
+                is_task_ready = select_one_client(client_id, selected_client_index, free_client, _task)
+                if is_task_ready:
+                    break
+        
+        is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
+        if is_succ:
+            succ_cnt += _task.required_client_num
+            for client_id in selected_client_index:  # Mark selected clients as not free
+                free_client[client_id] = False
+
+    return succ_cnt, None
+    
+def AFL_select_clients(num_of_client, task_list):
+    succ_cnt = 0
+    alpha1=0.75
+    alpha2=0.01
+    alpha3=0.1
+    free_client = {client_id: True for client_id in range(num_of_client)}  # Initialize free_client outside the loop
+
+    for task_idx, _ in enumerate(task_list):
+        _task = task_list[task_idx]
+       
+        # ### Select clients
+        # selected_client_index = []
+        # clients_candidates = list(range(num_of_client))
+        # # set sampling distribution
+        # datasize = [_task.all_clients[client_id].datasize for client_id in clients_candidates]
+        # AFL_Valuation = np.exp(np.array(datasize) * alpha2)
+        # # 1) select 75% of K(total) users
+        # num_drop = len(datasize) - int(alpha1 * len(datasize))
+        # drop_client_idxs = np.argsort(datasize)[:num_drop]
+        # probs = copy.deepcopy(values)
+        # probs[drop_client_idxs] = 0
+        # probs /= sum(probs)
+        # # 2) select 99% of m users using prob.
+        # num_select = int((1 - alpha3) * num_of_client)
+        # selected = np.random.choice(num_of_client, num_select, replace=False)
+        # # 3) select 1% of m users randomly
+        # not_selected = np.array(list(set(np.arange(num_of_client)) - set(selected)))
+        # selected2 = np.random.choice(not_selected, num_of_client - num_select, replace=False)
+        # selected_client_idxs = np.append(selected, selected2, axis=0)
+
+        selected_num = _task.required_client_num
+        clients_candidates = list(range(num_of_client))
+        delete_num = int(alpha1 * num_of_client)
+        sel_num = int((1 - alpha3) * selected_num)
+        datasize = [_task.all_clients[client_id].datasize for client_id in clients_candidates]
+        AFL_Valuation = np.array(datasize) * alpha2
+        tmp_value = np.vstack([np.arange(num_of_client), AFL_Valuation])
+        tmp_value = tmp_value[:, tmp_value[1, :].argsort()]
+        prob = np.exp(alpha2 * tmp_value[1, delete_num:])
+        prob = prob/np.sum(prob)
+        sel1 = np.random.choice(np.array(tmp_value[0, delete_num:], dtype=np.int64), 
+                                    sel_num, replace=False, p=prob)
+
+        remain = set(np.arange(num_of_client)) - set(sel1)
+        sel2 = np.random.choice(list(remain), selected_num-sel_num, replace = False)
+        selected_client_index = np.append(sel1, sel2)
+        
+        is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
+        if is_succ:
+            succ_cnt += _task.required_client_num
+            for client_id in selected_client_index:  # Mark selected clients as not free
+                free_client[client_id] = False
+
+    return succ_cnt, None
+
+   
 
 def even_select_clients(ask_table, client_feature_list, task_list, bid_table, update=True):
     num_of_client = len(client_feature_list)

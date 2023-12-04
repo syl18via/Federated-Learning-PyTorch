@@ -28,7 +28,7 @@ random.seed(0)
 ### Experiment Configsc
 MIX_RATIO = 0.8
 SIMULATE = False
-EPOCH_NUM = 200
+EPOCH_NUM = 30
 TRIAL_NUM = 1
 TASK_NUM = 2
 
@@ -49,10 +49,10 @@ target_labels_space = [
 test_required_dist_space = [
     # [15,15,15,15,15,15],
     # [15,15,15,15,15,15]
-    # [30,30,30],
-    # [30,30,30]
-    [25,25,25],
-    [25,25,25]
+    [30,30,30],
+    [30,30,30]
+    # [25,25,25],
+    # [25,25,25]
     # [10,10,10,10,10,10,10,10,10]
 ]
 
@@ -97,7 +97,7 @@ if __name__ == '__main__':
         )
     
     ############################### Predefined structure for shap ###########################################
-    if args.policy == "shap":
+    if args.policy == "shap" or "greedy":
         cost_list=[]
         for client_idx in range(args.num_users):
             # cost_list.append(random.randint(1,10)/10)
@@ -194,6 +194,13 @@ if __name__ == '__main__':
             succ_cnt, reward = policy.simple_select_clients(args.num_users, task_list)
         elif args.policy == "simple_reverse":
             succ_cnt, reward = policy.simple_select_clients(args.num_users, task_list, reverse=True)
+        elif args.policy == "size":
+            succ_cnt, reward = policy.datasize_select_clients(args.num_users,task_list)
+        elif args.policy == "afl":
+            succ_cnt, reward = policy.AFL_select_clients(args.num_users,task_list)
+        elif args.policy == "greedy":
+            norm_bid_table = util.normalize_data(bid_table)
+            succ_cnt, reward = policy.greedy_select_clients(args.num_users, task_list, norm_bid_table)
         elif args.policy == "shap":
             ask_table = util.calcualte_client_value(price_table, client_feature_list)
             norm_ask_table = util.normalize_data(ask_table)
