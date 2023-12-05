@@ -43,9 +43,10 @@ target_labels_space = [
     # [2,8,7,1,4,5]
     [3,6,9],
     [2,8,7]
-# [0,1,2,3,4,5,6,7,8]
+    # [0,1,2,3,4,5,6,7,8]
 ]
 
+# Space for the required distribution for the test dataset
 test_required_dist_space = [
     # [15,15,15,15,15,15],
     # [15,15,15,15,15,15]
@@ -96,8 +97,8 @@ if __name__ == '__main__':
             test_required_dist=util.sample_config(test_required_dist_space, task_id, use_random=False)
         )
     
-    ############################### Predefined structure for shap ###########################################
-    if args.policy == "shap" or "greedy":
+    ############################### Predefined structure for NmFLI ###########################################
+    if args.policy == "nmfli" or "greedy":
         cost_list=[]
         for client_idx in range(args.num_users):
             # cost_list.append(random.randint(1,10)/10)
@@ -112,11 +113,13 @@ if __name__ == '__main__':
         ### Initialize the price_table and bid table
         price_table = None
         def init_price_table(price_table):
+            # Price table, of shape (# of clients, # of tasks), 
+            # where each element is a list of (epoch, value) pairs
             price_table = []
             for client_idx in range(args.num_users):
                 init_price_list = []
                 for taks_idx in range(len(task_list)):
-                    init_price_list.append(0)
+                    init_price_list.append([])
                 price_table.append(init_price_list)
             return price_table
         
@@ -138,14 +141,15 @@ if __name__ == '__main__':
                 task.train_one_round()
 
         ### At the end of this epoch
-        if args.policy == "shap":
+        if args.policy == "nmfli":
             shapely_value_table = [task.shap() for task in task_list]
             ### Normalize using sigmoid
             shapely_value_table = [
                 util.sigmoid(np.array(elem)) if len(elem) > 0 else elem 
                     for elem in shapely_value_table]
             shapely_value_table = np.array(shapely_value_table)
-            # print(f"shapely_value_table: {shapely_value_table}")
+            shapely_value_table /= np.expand_dims(np.max(shapely_value_table, axis=1), axis=1)
+            # util.pretty_print_2darray("Shap Table [task\\client]", shapely_value_table)
 
             ### Update price table
             for task_idx in range(len(task_list)):
@@ -154,10 +158,12 @@ if __name__ == '__main__':
                 selected_client_index = task_list[task_idx].selected_client_idx
                 for idx in range(len(selected_client_index)):
                     client_idx = selected_client_index[idx]
-                    shapley_value = shapely_value_table[task_idx][idx]
-                    shapely_value_scaled = shapley_value * len(selected_client_index) / args.num_users
-                    # price_table[client_idx][task_idx] = ((epoch / (epoch + 1)) * price_table[client_idx][task_idx] + (1 / (epoch + 1)) * shapely_value_scaled) 
-                    price_table[client_idx][task_idx] = shapely_value_scaled 
+                    shapely_value_scaled = shapely_value_table[task_idx][idx]
+                    # shapely_value_scaled = shapley_value * len(selected_client_index) / args.num_users
+                    # price_table[client_idx][task_idx] = ((epoch / (epoch + 1)) * price_table[client_idx][task_idx] \
+                    #     + (1 / (epoch + 1)) * shapely_value_scaled)
+                    # price_table[client_idx][task_idx] = shapely_value_scaled
+                    price_table[client_idx][task_idx].append((epoch, shapely_value_scaled))
             
             total_cost = 0
             bid_list = [task.delta_accu * task.bid_per_loss_delta for task in task_list]
@@ -197,12 +203,14 @@ if __name__ == '__main__':
         elif args.policy == "size":
             succ_cnt, reward = policy.datasize_select_clients(args.num_users,task_list)
         elif args.policy == "afl":
-            succ_cnt, reward = policy.AFL_select_clients(args.num_users,task_list)
+            succ_cnt, reward = policy.AFL_select_clients(args.num_users, task_list)
         elif args.policy == "greedy":
             norm_bid_table = util.normalize_data(bid_table)
             succ_cnt, reward = policy.greedy_select_clients(args.num_users, task_list, norm_bid_table)
-        elif args.policy == "shap":
+        elif args.policy == "nmfli":
+            # util.pretty_print_2darray("Price Table [client\\task]", price_table)
             ask_table = util.calcualte_client_value(price_table, client_feature_list)
+            # util.pretty_print_2darray("Ask Table [client\\task]", ask_table)
             norm_ask_table = util.normalize_data(ask_table)
             norm_bid_table = util.normalize_data(bid_table)
             succ_cnt, reward = policy.my_select_clients(
@@ -222,8 +230,6 @@ if __name__ == '__main__':
         for task in task_list:
             task.end_of_epoch()
 
-    raise
-
     ### Previous method to perform shap-based client selection
     # def shap_based(num_users):
         
@@ -233,7 +239,7 @@ if __name__ == '__main__':
     #     shap_based_grad_proj = np.array(sv)
     #     return shap_based_grad_proj.argsort()[-num_users:]
 
-    # elif args.policy == "shap":
+    # elif args.policy == "nmfli":
     #     if epoch == 0:
     #         client2weights = dict([(idxs_users[i], local_weights[i]) for i in range(len(idxs_users))])
     #         print(f"Calculate shaple value for {len(idxs_users)} clients")

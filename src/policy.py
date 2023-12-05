@@ -85,7 +85,6 @@ def my_select_clients(ask_table, client_feature_list, task_list, bid_table):
     
     return succ_cnt, None
 
-
 def mcafee_select_clients(ask_table, client_feature_list, task_list, bid_table, update= True):
     ''' client_feature_list: list
             a list of (cost, idlecost)
@@ -180,7 +179,6 @@ def mcafee_select_clients(ask_table, client_feature_list, task_list, bid_table, 
             
         i += 1
     
-
     ### Note: the last task can absolutely not trade successfully
     if update:
         task_id = sorted_task_with_index[task_num-1][0]
@@ -374,8 +372,6 @@ def AFL_select_clients(num_of_client, task_list):
 
     return succ_cnt, None
 
-   
-
 def even_select_clients(ask_table, client_feature_list, task_list, bid_table, update=True):
     num_of_client = len(client_feature_list)
     free_client = [True] * num_of_client
@@ -407,10 +403,8 @@ def even_select_clients(ask_table, client_feature_list, task_list, bid_table, up
     return succ_cnt, reward
 
 def momentum_select_clients(num_of_client, task_list):
-    # pdb.set_trace()
     free_client = [True] * num_of_client
     succ_cnt = 0
-    # import pdb; pdb.set_trace()
     for task_idx, _ in enumerate(task_list):
         _task = task_list[task_idx]
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Example: bash script/train.sh momentum show --dataset=cifar --iid=1 --num_users=1
+# Example: bash script/train.sh random show --dataset=mnist --iid=0 --num_users=10
 
 policy=$1
 

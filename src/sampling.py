@@ -145,16 +145,16 @@ def load_custom_dataset(dataset, num_users):
 
     total_data_size = sum(counter.values())
 
-    ### Assume each client has the same size of data
-    # data_size_per_client = int(total_data_size / CLIENT_NUM)
-    # CLIENT_DATA_NUM = [data_size_per_client] * CLIENT_NUM
-
-
-    ###assume clients have an increasing order of datasize
-    # CLIENT_DATA_RATIO = [0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.12, 0.12, 0.12]
-    CLIENT_DATA_RATIO = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-    assert CLIENT_NUM == len(CLIENT_DATA_RATIO)
-    CLIENT_DATA_NUM = [int(ratio * total_data_size) for ratio in CLIENT_DATA_RATIO]
+    is_even_datasize = True
+    if is_even_datasize:
+        ### Each client has the same size of data
+        data_size_per_client = int(total_data_size / CLIENT_NUM)
+        CLIENT_DATA_NUM = [data_size_per_client] * CLIENT_NUM
+    else:
+        ##assume clients have an increasing order of datasize
+        CLIENT_DATA_RATIO = [0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.09, 0.12, 0.12, 0.12]
+        assert CLIENT_NUM == len(CLIENT_DATA_RATIO)
+        CLIENT_DATA_NUM = [int(ratio * total_data_size) for ratio in CLIENT_DATA_RATIO]
 
     client2dataidxs: Dict[int, np.ndarray] = {i: np.array([]) for i in range(num_users)}
 
@@ -289,6 +289,9 @@ def mnist_noniid_unequal(dataset, num_users):
     return client2dataidxs
 
 
+#############################################
+############### Cifar dataset ###############
+
 def cifar_iid(dataset, num_users):
     """
     Sample I.I.D. client data from CIFAR10 dataset
@@ -376,6 +379,7 @@ def load_federated_mnist_dataset(dataset, num_users):
             client2dataidxs[client_id] = np.concatenate((client2dataidxs[client_id], required_data_idxs), axis=0)
 
     return client2dataidxs
+
 
 def get_dataset(args):
     """ Returns train and test datasets and a user group which is a dict where

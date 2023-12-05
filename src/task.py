@@ -19,6 +19,8 @@ from client import VirtualClient
 from svfl import calculate_sv
 from util import PRINT_EVERY
 
+from client import check_dist
+
 INF_INTEGER = 1000000
 
 class ClientState:
@@ -156,7 +158,13 @@ class Task:
         self.init_weights = self.global_weights
         self.accu, self.loss = self.evaluate_model(self.global_weights)
 
-        print(f"[Task {self.task_id}] target_labels: {target_labels}, accuracy {self.accu}")
+        ### Check the distribution of the virtual client
+        # check_dist(f"Test data", self.test_client)
+        check_dist(f"[Task {self.task_id}] target_labels: {target_labels}, "
+            f"initialized accuracy {self.accu * 100:.2f} %, "
+            f"required test dataset distribution {self.test_required_dist}, "
+            f"test data distribution after relabeling",
+            self.test_model.dataset)
 
         self.train_loss, self.train_accuracy = [], []
 
@@ -166,8 +174,7 @@ class Task:
 
         self.start_time = time.time()
 
-    def train_one_round(self):
-        
+    def train_one_round(self):   
         self.local_weights, local_losses = [], []
         self.global_model.train()
 
@@ -199,8 +206,12 @@ class Task:
             self.logger.add_scalar(f'Task{self.task_id}/Loss', self.train_loss[-1], global_step=self.epoch)
             self.logger.add_scalar(f'Task{self.task_id}/Accu.', self.train_accuracy[-1], global_step=self.epoch)
             self.logger.flush()
-            print(f'[{datetime.datetime.now().__format__("%H:%M:%S")} ({time.time() - self.start_time:.3f})s] Task {self.task_id}, Avg Training Stats after {self.epoch+1} global rounds: Training Loss : {self.train_loss[-1]:.3f}'
-             f', Train Accuracy: {100*self.train_accuracy[-1]:.3f}% selcted idxs {self.selected_client_idx}')
+            print(f"[{datetime.datetime.now().__format__('%H:%M:%S')} "
+                f"({time.time() - self.start_time:.3f})s] Task {self.task_id}, "
+                f"Avg Training Stats after {self.epoch+1} global rounds: "
+                f"Training Loss : {self.train_loss[-1]:.3f}"
+                f", Train Accuracy: {100*self.train_accuracy[-1]:.2f}% "
+                f"selected idxs {self.selected_client_idx}")
         
         self.step += 1
     
@@ -213,13 +224,6 @@ class Task:
             target_labels= self.target_labels,
             shuffle=False,
             required_dist=self.test_required_dist)
-        
-        ### Check the distribution of the virtual client
-        from client import check_dist
-        # check_dist(f"Test data", self.test_client)
-        check_dist(f"Task {self.task_id}, target_labels {self.target_labels},  required distribution {self.test_required_dist},"
-            f" test data distribution after relabeling",
-            self.test_model.dataset)
 
     def evaluate_model(self, weights=None):
         # function to compute evaluation metric, ex: accuracy, precision
@@ -269,7 +273,6 @@ class Task:
         self.log("Clients {} are selected.".format(self.selected_client_idx))
 
     def shap(self):
-
         # ### TODO used for debug
         # return [1] * len(self.selected_client_idx)
 

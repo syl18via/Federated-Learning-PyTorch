@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import pandas as pd
 
 STEP_NUM = 1
 PRINT_EVERY = 1
@@ -21,18 +22,35 @@ def normalize_data(data, method="max_min"):
 
 def calcualte_client_value(price_table, client_feature_list):
     ''' price_table is a 2-D list, shape=(#client, #task)
-    price_table[client_id][task_id] is the price of client_id for task_id
+    price_table[client_id][task_id] is a list of (epoch, price of client_id for task_id)
     '''
     idle_cost_list = [feature[1] for feature in client_feature_list]
     value_table = []
     for client_idx in range(len(client_feature_list)):
+        # shape = #task
         client_price_list = price_table[client_idx]
-        value_list = [price / (idle_cost_list[client_idx]+1) for price in  client_price_list]
+        value_list = []
+        for epoch_price_list in client_price_list:
+            # Take the median, instead of mean, to reduce the effect of marginal values
+            price = np.median([price for epoch, price in epoch_price_list])
+            # The larger idle cost is, the smaller price is
+            value_list.append(price / (idle_cost_list[client_idx]+1))
         value_table.append(value_list)
     return value_table
 
+
+def pretty_print_2darray(name, a, columns=None):
+    print(name)
+    df = pd.DataFrame(a, columns=columns)
+    print(df)
+
 def sigmoid(data):
-    return 1/ (1+ np.exp(-data))
+    return 1 / (1 + np.exp(-data))
+
+def softmax(data):
+    m = np.max(data)
+    l = np.exp(data - m)
+    return l / np.sum(l)
 
 def remove_list_indexed(removed_ele, original_l, ll):
     new_original_l = []
