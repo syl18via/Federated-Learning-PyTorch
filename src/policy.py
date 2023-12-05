@@ -30,7 +30,7 @@ def select_one_client(client_idx, selected_client_index, free_client, _task):
     free_client[client_idx] = False
     return len(selected_client_index) >= _task.required_client_num
 
-def check_trade_success_or_not(selected_client_index, _task, free_client,update= True):
+def check_trade_success_or_not(selected_client_index, _task, free_client, update=True):
     if len(selected_client_index) < _task.required_client_num:
         ### Trade failed
         for client_idx in selected_client_index:
@@ -85,7 +85,7 @@ def my_select_clients(ask_table, client_feature_list, task_list, bid_table):
     
     return succ_cnt, None
 
-def mcafee_select_clients(ask_table, client_feature_list, task_list, bid_table, update= True):
+def mcafee_select_clients(ask_table, client_feature_list, task_list, bid_table, update=True):
     ''' client_feature_list: list
             a list of (cost, idlecost)
         task_list: list
@@ -97,15 +97,15 @@ def mcafee_select_clients(ask_table, client_feature_list, task_list, bid_table, 
     ### policy
 
     ### shape of task_bid_list = (task_num)
-    task_bid_list = np.sum(bid_table, axis=0)-3.5
+    task_bid_list = np.sum(bid_table, axis=0) - 3.5
     sorted_task_with_index = sorted(enumerate(task_bid_list), key=lambda x: x[1], reverse=True)
-    client_value_list =  np.sum((ask_table), axis=1)
+    client_value_list = np.sum((ask_table), axis=1)
     client_value_list_sorted = sorted(enumerate(client_value_list), key=lambda x: x[1], reverse=False)
     client_num= len(client_value_list)
     task_num = len(task_bid_list)
-    print("mb", sorted_task_with_index)
-    print("ma",client_value_list_sorted)
-    print("task#: ", task_num, " client#: ", client_num)
+    print("- [mcafee] mb: ", sorted_task_with_index)
+    print("- [mcafee] ma: ", client_value_list_sorted)
+    print("- [mcafee] task#: ", task_num, " client#: ", client_num)
 
     i = 0
     free_client = [True] * len(client_feature_list)
@@ -161,19 +161,12 @@ def mcafee_select_clients(ask_table, client_feature_list, task_list, bid_table, 
         reward = 0
         if trade_succed:
             refer_bid = task_list[i+1].bid_per_loss_delta
-            
-
             tmp = 0
-
             for client_idx in selected_client_index:
                 refer_ask = util.sigmoid(client_value_list[client_idx+1])
                 tmp += (refer_bid + refer_ask) / 2
-
-                print("p",refer_ask)
-                
-            
-            reward += tmp * _task.total_loss_delta *100
-              
+                print("- [mcafee] p refer_ask: ", refer_ask)
+            reward += tmp * _task.total_loss_delta *100 
             ### count successful matching
             succ_cnt += _task.required_client_num
             
@@ -215,31 +208,32 @@ def mcafee_select_clients(ask_table, client_feature_list, task_list, bid_table, 
 def simple_select_clients(num_of_client, task_list, reverse=False):
     free_client = [True] * num_of_client
     succ_cnt = 0
+    
+    optimal = False
+    if optimal:
+        task_list[0].selected_client_idx = [6, 1]
+        task_list[1].selected_client_idx = [2, 3]
+        # print("Clients {} are assined to task {}".format(selected_client_index, _task.task_id))
+        task_list[0].init_select_clients()
+        task_list[1].init_select_clients()
+    else:
+        for task_idx, _ in enumerate(task_list):
+            _task = task_list[task_idx]
 
-    task_list[0].selected_client_idx = [6, 1]
-    task_list[1].selected_client_idx = [2, 3]
-    # print("Clients {} are assined to task {}".format(selected_client_index, _task.task_id))
-    task_list[0].init_select_clients()
-    task_list[1].init_select_clients()
-
-
-    # for task_idx, _ in enumerate(task_list):
-    #     _task = task_list[task_idx]
-
-    #     ### Select clients
-    #     selected_client_index = []
-    #     iterator = range(num_of_client)
-    #     if reverse:
-    #         iterator = reversed(iterator)
-    #     for client_idx in iterator:
-    #         if free_client[client_idx]:
-    #             # and buyer_give_more_money(client_idx, task_idx, ask_table, bid_table):
-    #             is_task_ready = select_one_client(client_idx, selected_client_index, free_client, _task)
-    #             if is_task_ready:
-    #                 break
-    #     is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
-    #     if is_succ:
-    #         succ_cnt += _task.required_client_num
+            ### Select clients
+            selected_client_index = []
+            iterator = range(num_of_client)
+            if reverse:
+                iterator = reversed(iterator)
+            for client_idx in iterator:
+                if free_client[client_idx]:
+                    # and buyer_give_more_money(client_idx, task_idx, ask_table, bid_table):
+                    is_task_ready = select_one_client(client_idx, selected_client_index, free_client, _task)
+                    if is_task_ready:
+                        break
+            is_succ = check_trade_success_or_not(selected_client_index, _task, free_client)
+            if is_succ:
+                succ_cnt += _task.required_client_num
     return succ_cnt, None
 
 def random_select_clients(num_of_client, task_list):

@@ -5,6 +5,7 @@
 import os
 import time
 import numpy as np
+import pandas as pd
 import random
 from datetime import datetime
 
@@ -21,6 +22,8 @@ import policy
 from client import get_clients
 from util import STEP_NUM
 
+args = args_parser()
+
 np.random.seed(1)
 torch.manual_seed(0)
 random.seed(0)
@@ -28,23 +31,28 @@ random.seed(0)
 ### Experiment Configsc
 MIX_RATIO = 0.8
 SIMULATE = False
-EPOCH_NUM = 30
+EPOCH_NUM = 200
 TRIAL_NUM = 1
 TASK_NUM = 2
-
 
 bid_per_loss_delta_space = [1]
 required_client_num_space = [2]
 # target_labels_space = [[0,5],[1,4]]
 # target_labels_space = [list(range(5)),list(range(5,10))]
 
-target_labels_space = [
-    # [1,4,5,3,6,9],
-    # [2,8,7,1,4,5]
-    [3,6,9],
-    [2,8,7]
-    # [0,1,2,3,4,5,6,7,8]
-]
+if args.target_label == "identical":
+    target_labels_space = [
+        [0,1,2,3,4,5,6,7,8,9]]
+elif args.target_label == "overlap":
+    target_labels_space = [
+        [1,4,5,3,6,9],
+        [2,8,7,1,4,5]]
+elif args.target_label == "non_overlap":
+    target_labels_space = [
+        [3,6,9],
+        [2,8,7]]
+else:
+    raise ValueError()
 
 # Space for the required distribution for the test dataset
 test_required_dist_space = [
@@ -63,8 +71,6 @@ if __name__ == '__main__':
 
     # define paths
     path_project = os.path.abspath('..')
-    
-    args = args_parser()
 
     now = datetime.now() # current date and time
     logger = SummaryWriter(f'../logs/{now.strftime("%Y-%m-%d_%H:%M:%S")}-{args.policy}-{args.dataset}-iid={args.iid}-{args.model}-lr_{args.lr}')
@@ -78,7 +84,7 @@ if __name__ == '__main__':
     task_list = []
     def create_task(selected_client_idx, required_client_num, bid_per_loss_delta,
             target_labels=None, test_required_dist=None):
-        task = Task(args, logger, train_dataset, test_client, all_clients,
+        task = Task(args, start_time, logger, train_dataset, test_client, all_clients,
             task_id = len(task_list),
             selected_client_idx=selected_client_idx,
             required_client_num=required_client_num,
@@ -127,9 +133,6 @@ if __name__ == '__main__':
         bid_table = np.zeros((args.num_users, len(task_list)))
 
     ############################### Main process of FL ##########################################
-    total_reward_list = []
-    succ_cnt_list = []
-    reward_sum=[]
     print("\nStart training ...")
     for epoch in range(EPOCH_NUM):
         for task in task_list:
@@ -230,6 +233,29 @@ if __name__ == '__main__':
         for task in task_list:
             task.end_of_epoch()
 
+    # Cache results
+    header = ["Step"]
+    all_data = []
+    for task_id, task in enumerate(task_list):
+        header.extend([f"Task {task_id} time", f"Task {task_id} train loss",
+                       f"Task {task_id} test accu."])
+        if task_id == 0:
+            all_data.append(task.epoch_num)
+        else:
+            assert task.epoch_num == all_data[0]
+        
+        all_data.append(task.timestamp)
+        all_data.append(task.train_loss)
+        all_data.append(task.test_accuracy)
+    
+    all_data = np.array(all_data).T
+    df = pd.DataFrame(all_data, columns=header)
+    cache_path = os.environ.get("NMFLI_EXP_NAME", f"save/result/{args.dataset}-{args.target_label}-{args.model}-"
+        f"{args.policy}") + ".csv"
+    if not os.path.exists(os.path.dirname(cache_path)):
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    df.to_csv(cache_path, index=False)
+    
     ### Previous method to perform shap-based client selection
     # def shap_based(num_users):
         

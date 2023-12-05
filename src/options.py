@@ -44,15 +44,11 @@ def args_parser():
     parser.add_argument('--policy', type=str, default='momentum',
                         help="select policy for choosing clients")                       
 
-    # other arguments
+    # dataset
     parser.add_argument('--dataset', type=str, default='mnist', help="name \
                         of dataset")
     parser.add_argument('--num_classes', type=int, default=10, help="number \
                         of classes")
-    parser.add_argument('--gpu', default=None, help="To use cuda, set \
-                        to a specific GPU ID. Default set to use CPU.")
-    parser.add_argument('--optimizer', type=str, default='sgd', help="type \
-                        of optimizer")
     parser.add_argument('--iid', type=int, default=1,
                         help='Default set to IID. Set to 0 for non-IID.')
     parser.add_argument('--unequal', type=int, default=0,
@@ -60,6 +56,13 @@ def args_parser():
                         non-i.i.d setting (use 0 for equal splits)')
     parser.add_argument('--halfiid', type=int, default=0,
                         help='Default set to non-halfIID. Set to 1 for halfIID.')
+    parser.add_argument('--target_label', type=str, default="non_overlap", help="The labels required by each task")
+    
+    # other arguments
+    parser.add_argument('--gpu', default=None, help="To use cuda, set \
+                        to a specific GPU ID. Default set to use CPU.")
+    parser.add_argument('--optimizer', type=str, default='sgd', help="type \
+                        of optimizer")
     parser.add_argument('--stopping_rounds', type=int, default=10,
                         help='rounds of early stopping')
     parser.add_argument('--verbose', type=int, default=0, help='verbose')

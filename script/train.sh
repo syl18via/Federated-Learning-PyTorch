@@ -16,6 +16,6 @@ elif [[ $2 == "show" ]]; then
 else
     remain_arg=${@:2}
     python3 -u src/federated_main.py \
-        --model=cnn  --dataset=mnist --num_users=10 --policy=${policy} --iid=0 $remain_arg > src/log/${policy}.txt 2>&1 & 
+        --model=cnn --dataset=mnist --num_users=10 --policy=${policy} --iid=0 $remain_arg > src/log/${policy}.txt 2>&1 & 
 fi
 

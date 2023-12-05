@@ -79,7 +79,7 @@ def fed_avg(client2weights):
     return average_weights(list(client2weights.values()))
 
 class Task:
-    def __init__(self, args,
+    def __init__(self, args, start_time,
             logger, train_dataset, test_client, all_clients,
             task_id, selected_client_idx,
             required_client_num=None,
@@ -166,13 +166,14 @@ class Task:
             f"test data distribution after relabeling",
             self.test_model.dataset)
 
-        self.train_loss, self.train_accuracy = [], []
+        self.train_loss, self.test_accuracy = [], []
+        self.epoch_num, self.timestamp = [], []
 
         self.accuracy_per_update = [self.accu]
         self.loss_per_update = [self.loss]
         self.loss_before_step = None
 
-        self.start_time = time.time()
+        self.start_time = start_time
 
     def train_one_round(self):   
         self.local_weights, local_losses = [], []
@@ -191,29 +192,28 @@ class Task:
         self.global_model.load_state_dict(self.global_weights)
 
         # print global training loss after every 'i' rounds
-        if (self.step+1) % PRINT_EVERY == 0:
+        if (self.epoch+1) % PRINT_EVERY == 0:
             loss_avg = sum(local_losses) / len(local_losses)
             self.train_loss.append(loss_avg)
 
             # Calculate avg training accuracy over all users at every epoch
-            list_acc, list_loss = [], []
             self.global_model.eval()
-            
             self.accu, self.loss = self.evaluate_model(self.global_weights)
-            self.train_accuracy.append(self.accu)
-            # print(f' \nlist acc {list_acc} ')
+            self.test_accuracy.append(self.accu)
             
+            self.epoch_num.append(self.epoch)
+            self.timestamp.append(time.time() - self.start_time)
+            
+            # log
             self.logger.add_scalar(f'Task{self.task_id}/Loss', self.train_loss[-1], global_step=self.epoch)
-            self.logger.add_scalar(f'Task{self.task_id}/Accu.', self.train_accuracy[-1], global_step=self.epoch)
+            self.logger.add_scalar(f'Task{self.task_id}/Accu.', self.test_accuracy[-1], global_step=self.epoch)
             self.logger.flush()
             print(f"[{datetime.datetime.now().__format__('%H:%M:%S')} "
-                f"({time.time() - self.start_time:.3f})s] Task {self.task_id}, "
+                f"({self.timestamp[-1]:.3f})s] Task {self.task_id}, "
                 f"Avg Training Stats after {self.epoch+1} global rounds: "
-                f"Training Loss : {self.train_loss[-1]:.3f}"
-                f", Train Accuracy: {100*self.train_accuracy[-1]:.2f}% "
+                f"Training Loss : {self.train_loss[-1]:.3f}, "
+                f"Test Accuracy: {100*self.test_accuracy[-1]:.2f}%, "
                 f"selected idxs {self.selected_client_idx}")
-        
-        self.step += 1
     
     def init_test_model(self, args, logger):
         self.test_model = VirtualClient(
@@ -286,7 +286,7 @@ class Task:
         test_acc, test_loss = test_inference(args, self.global_model, test_client)
 
         print(f' \n Task {self.task_id}: Results after {args.epochs} global rounds of training:')
-        print("|---- Avg Train Accuracy: {:.2f}%".format(100*self.train_accuracy[-1]))
+        print("|---- Avg Test Accuracy: {:.2f}%".format(100*self.test_accuracy[-1]))
         print("|---- Test Accuracy: {:.2f}%".format(100*test_acc))
 
         print('Total Run Time: {0:0.4f}\n'.format(time.time()-start_time))
@@ -362,10 +362,10 @@ class Task:
 
     @property
     def delta_accu(self):
-        if len(self.train_accuracy) == 0:
+        if len(self.test_accuracy) == 0:
             return 0
-        elif len(self.train_accuracy) == 1:
-            return self.train_accuracy[0]
+        elif len(self.test_accuracy) == 1:
+            return self.test_accuracy[0]
         else:
-            return self.train_accuracy[-1] - self.train_accuracy[-2]
+            return self.test_accuracy[-1] - self.test_accuracy[-2]
         
