@@ -403,7 +403,7 @@ def get_dataset(args):
         # check_dist("Cifar Test", test_dataset)           
 
         # sample training data amongst users
-        if False:
+        if True:
             client2dataidxs = load_custom_dataset(dataset=train_dataset, num_users=args.num_users)
         elif args.iid:
             # Sample IID user data from Mnist

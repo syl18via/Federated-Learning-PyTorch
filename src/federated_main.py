@@ -152,7 +152,8 @@ if __name__ == '__main__':
                     for elem in shapely_value_table]
             shapely_value_table = np.array(shapely_value_table)
             shapely_value_table /= np.expand_dims(np.max(shapely_value_table, axis=1), axis=1)
-            # util.pretty_print_2darray("Shap Table [task\\client]", shapely_value_table)
+            if args.verbose:
+                util.pretty_print_2darray("Shap Table [task\\client]", shapely_value_table)
 
             ### Update price table
             for task_idx in range(len(task_list)):
@@ -211,9 +212,11 @@ if __name__ == '__main__':
             norm_bid_table = util.normalize_data(bid_table)
             succ_cnt, reward = policy.greedy_select_clients(args.num_users, task_list, norm_bid_table)
         elif args.policy == "nmfli":
-            # util.pretty_print_2darray("Price Table [client\\task]", price_table)
+            if args.verbose:
+                util.pretty_print_2darray("Price Table [client\\task]", price_table)
             ask_table = util.calcualte_client_value(price_table, client_feature_list)
-            # util.pretty_print_2darray("Ask Table [client\\task]", ask_table)
+            if args.verbose:
+                util.pretty_print_2darray("Ask Table [client\\task]", ask_table)
             norm_ask_table = util.normalize_data(ask_table)
             norm_bid_table = util.normalize_data(bid_table)
             succ_cnt, reward = policy.my_select_clients(
