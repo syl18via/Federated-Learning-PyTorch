@@ -17,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from svfl import calculate_sv
 from options import args_parser
-from utils import exp_details
+from exp_utils import exp_details
 import policy
 from client import get_clients
 from util import STEP_NUM
@@ -40,31 +40,27 @@ required_client_num_space = [2]
 # target_labels_space = [[0,5],[1,4]]
 # target_labels_space = [list(range(5)),list(range(5,10))]
 
+# Init target label and the space for the required 
+# distribution for the test dataset
 if args.target_label == "identical":
-    target_labels_space = [
-        [0,1,2,3,4,5,6,7,8,9]]
+    target_labels_space = [None]
+    test_required_dist_space = [None]
 elif args.target_label == "overlap":
     target_labels_space = [
         [1,4,5,3,6,9],
         [2,8,7,1,4,5]]
+    test_required_dist_space = [
+        [15,15,15,15,15,15],
+        [15,15,15,15,15,15]]
 elif args.target_label == "non_overlap":
     target_labels_space = [
         [3,6,9],
         [2,8,7]]
+    test_required_dist_space = [
+        [30,30,30],
+        [30,30,30]]
 else:
     raise ValueError()
-
-# Space for the required distribution for the test dataset
-test_required_dist_space = [
-    # [15,15,15,15,15,15],
-    # [15,15,15,15,15,15]
-    [30,30,30],
-    [30,30,30]
-    # [25,25,25],
-    # [25,25,25]
-    # [10,10,10,10,10,10,10,10,10]
-]
-
 
 if __name__ == '__main__':
     start_time = time.time()

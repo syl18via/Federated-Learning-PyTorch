@@ -77,7 +77,6 @@ class DatasetRelabel(DatasetSplit):
                 self.idxs = []
                 for _label, label_idxs in enumerate(new_label2idxs):
                     self.idxs += label_idxs[:real_new_label_sample_cnts[_label]]
-
         else:
             self.to_new_label_dict = self.minor_class_label = None
 

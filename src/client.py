@@ -5,7 +5,7 @@ import torch
 from torch import nn
 import torch.optim as optim
 
-from utils import DatasetSplit, DatasetRelabel
+from exp_utils import DatasetSplit, DatasetRelabel
 from torch.utils.data import DataLoader
 from sampling import get_dataset, check_dist
 

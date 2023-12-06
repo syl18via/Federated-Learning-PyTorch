@@ -14,7 +14,7 @@ import torch.backends.cudnn as cudnn
 from options import args_parser
 from client import test_inference
 from nets import MLP, CNNMnist, CNNFashion_Mnist, CNNCifar, find_models
-from utils import average_weights, exp_details
+from exp_utils import average_weights, exp_details
 from client import VirtualClient
 from svfl import calculate_sv
 from util import PRINT_EVERY

@@ -7,7 +7,8 @@ MODELS=(cnn)
 TARGET_LABEL_CFGS=(non_overlap overlap identical)
 ALL_METHODS=(random afl size nmfli greedy simple)
 
-TARGET_LABEL_CFGS=(non_overlap)
+# TARGET_LABEL_CFGS=(non_overlap)
+TARGET_LABEL_CFGS=(overlap identical)
 # ALL_METHODS=(nmfli)
 
 NMFLI_EXP_DIR=save/results/${NMFLI_EXP_DATETIME}
