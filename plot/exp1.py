@@ -4,6 +4,7 @@ import re
 
 import pandas as pd
 import numpy as np
+import math
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -22,6 +23,15 @@ def smooth(scalars: List[float], weight: float) -> List[float]:
         smoothed.append(smoothed_val)                        # Save it
         last = smoothed_val                                  # Anchor the last smoothed value
     return np.array(smoothed)
+
+def fig_base(fig_num, row_first=True):
+    if row_first:
+        row_num = math.ceil(math.sqrt(fig_num))
+        col_num = math.ceil(fig_num / row_num)
+    else:
+        col_num = math.ceil(math.sqrt(fig_num))
+        row_num = math.ceil(fig_num / col_num)
+    return row_num * 100 + col_num * 10
 
 exp_dir = sys.argv[1]
 
@@ -45,40 +55,48 @@ def policy_legend_name(policy):
     else:
         raise ValueError(policy)
 
-fig = plt.figure(figsize=(12, 8))
-ax0 = fig.add_subplot(221); ax0.grid()
-ax1 = fig.add_subplot(222); ax1.grid()
-ax2 = fig.add_subplot(223); ax2.grid()
+target_label_to_fig_dict = {}
+sub_fig_num = 3
 
 for _file in sorted(os.listdir(exp_dir)):
     if not _file.endswith(".csv"):
         continue
     rst = key_to_config(_file)
     print(rst["dataset"], rst["target_label"], rst["model"], rst["policy"])
+    if rst["target_label"] not in target_label_to_fig_dict:
+        target_label_to_fig_dict[rst["target_label"]] = [[] for _ in range(sub_fig_num)]
+        
     path = os.path.join(exp_dir, _file)
     df = pd.read_csv(path)
+    sub_fig_list = target_label_to_fig_dict[rst["target_label"]]
     # ax0.plot(df["Step"], df["Task 0 test accu."], alpha=0.3)
     # smooth
-    ax0.plot(df["Step"], smooth(df["Task 0 test accu."], .9), label=policy_legend_name(rst["policy"]))
-    ax1.plot(df["Step"], smooth(df["Task 1 test accu."], .9), label=policy_legend_name(rst["policy"]))
-    
-    ax2.plot(df["Step"], (smooth(df["Task 0 test accu."], .9) + smooth(df["Task 1 test accu."], .9)) / 2, label=policy_legend_name(rst["policy"]))
+    sub_fig_list[0].append((df["Step"], smooth(df["Task 0 test accu."], .9), policy_legend_name(rst["policy"])))
+    sub_fig_list[1].append((df["Step"], smooth(df["Task 1 test accu."], .9), policy_legend_name(rst["policy"])))
+    sub_fig_list[2].append((df["Step"], (smooth(df["Task 0 test accu."], .9) + smooth(df["Task 1 test accu."], .9)) / 2, policy_legend_name(rst["policy"])))
 
-ax0.set_xlabel("Step")
-ax0.set_ylabel("Task 0 test accu. (smoothed)")
-ax0.legend()
+for target_label in target_label_to_fig_dict.keys():
+    sub_fig_list = target_label_to_fig_dict[rst["target_label"]]
+    fig = plt.figure(figsize=(12, 8))
+    _fig_base = fig_base(sub_fig_num)
+    all_subfig = []
+    for sub_fig_id in range(sub_fig_num):
+        ax = fig.add_subplot(_fig_base + sub_fig_id + 1); ax.grid()
+        all_subfig.append(ax)
 
-ax1.set_xlabel("Step")
-ax1.set_ylabel("Task 1 test accu. (smoothed)")
-ax1.legend()
+    for sub_fig_id, sub_fig_data in enumerate(sub_fig_list):
+        for x, y, label in sub_fig_data:
+            all_subfig[sub_fig_id].plot(x, y, label=label)
+            
+    for sub_fig_id in range(sub_fig_num):
+        all_subfig[sub_fig_id].set_xlabel("Step")
+        all_subfig[sub_fig_id].set_ylabel("Task 0 test accu. (smoothed)")
+        all_subfig[sub_fig_id].legend()
 
-ax2.set_xlabel("Step")
-ax2.set_ylabel("Averaged test accu. (smoothed)")
-ax2.legend()
-
-plt.tight_layout()
-plt.savefig(os.path.join(exp_dir, "fig.pdf"))
-    
+    plt.tight_layout()
+    plt.savefig(os.path.join(exp_dir, f"{target_label}.pdf"))
+    plt.close()
+        
     
 
 

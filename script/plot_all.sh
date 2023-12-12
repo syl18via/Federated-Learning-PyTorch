@@ -3,3 +3,6 @@
 
 # cifar even dataset
 python3 plot/exp1.py save/results/20231205-170051-even_size_custom-gpu-cifar
+
+# 
+python3 plot/exp1.py save/results/20231206-144643-even_size_custom-gpu-cifar
