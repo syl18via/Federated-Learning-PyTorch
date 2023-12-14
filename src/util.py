@@ -32,7 +32,8 @@ def calcualte_client_value(price_table, client_feature_list):
         value_list = []
         for epoch_price_list in client_price_list:
             # Take the median, instead of mean, to reduce the effect of marginal values
-            price = np.median([price for epoch, price in epoch_price_list])
+            # price = np.median([price for epoch, price in epoch_price_list])
+            price = np.sum([price * delta_accu for epoch, price, delta_accu in epoch_price_list])
             # The larger idle cost is, the smaller price is
             value_list.append(price / (idle_cost_list[client_idx]+1))
         value_table.append(value_list)

@@ -20,7 +20,7 @@ from options import args_parser
 from exp_utils import exp_details
 import policy
 from client import get_clients
-from util import STEP_NUM
+from util import STEP_NUM, PRINT_EVERY
 
 args = args_parser()
 
@@ -36,7 +36,11 @@ TRIAL_NUM = 1
 TASK_NUM = 2
 
 bid_per_loss_delta_space = [1]
-required_client_num_space = [2]
+required_client_num_space = os.environ.get("REQUIRE_CLIENT_NUM", None)
+if required_client_num_space is None: 
+    required_client_num_space = [2]
+else:
+    required_client_num_space = [int(x) for x in required_client_num_space.split("_")]
 # target_labels_space = [[0,5],[1,4]]
 # target_labels_space = [list(range(5)),list(range(5,10))]
 
@@ -98,7 +102,6 @@ if __name__ == '__main__':
             target_labels=util.sample_config(target_labels_space, task_id, use_random=False),
             test_required_dist=util.sample_config(test_required_dist_space, task_id, use_random=False)
         )
-    
     ############################### Predefined structure for NmFLI ###########################################
     if args.policy == "nmfli" or "greedy":
         cost_list=[]
@@ -140,97 +143,98 @@ if __name__ == '__main__':
                 task.train_one_round()
 
         ### At the end of this epoch
-        if args.policy == "nmfli":
-            shapely_value_table = [task.shap() for task in task_list]
-            ### Normalize using sigmoid
-            shapely_value_table = [
-                util.sigmoid(np.array(elem)) if len(elem) > 0 else elem 
-                    for elem in shapely_value_table]
-            shapely_value_table = np.array(shapely_value_table)
-            shapely_value_table /= np.expand_dims(np.max(shapely_value_table, axis=1), axis=1)
-            if args.verbose:
-                util.pretty_print_2darray("Shap Table [task\\client]", shapely_value_table)
+        if (epoch+1) % PRINT_EVERY == 0: 
+            if args.policy == "nmfli":
+                shapely_value_table = [task.shap() for task in task_list]
+                ### Normalize using sigmoid
+                shapely_value_table = [
+                    util.sigmoid(np.array(elem)) if len(elem) > 0 else elem 
+                        for elem in shapely_value_table]
+                shapely_value_table = np.array(shapely_value_table)
+                shapely_value_table /= np.expand_dims(np.max(shapely_value_table, axis=1), axis=1)
+                if args.verbose:
+                    util.pretty_print_2darray("Shap Table [task\\client]", shapely_value_table)
 
-            ### Update price table
-            for task_idx in range(len(task_list)):
-                if task_list[task_idx].selected_client_idx is None:
-                    continue
-                selected_client_index = task_list[task_idx].selected_client_idx
-                for idx in range(len(selected_client_index)):
-                    client_idx = selected_client_index[idx]
-                    shapely_value_scaled = shapely_value_table[task_idx][idx]
-                    # shapely_value_scaled = shapley_value * len(selected_client_index) / args.num_users
-                    # price_table[client_idx][task_idx] = ((epoch / (epoch + 1)) * price_table[client_idx][task_idx] \
-                    #     + (1 / (epoch + 1)) * shapely_value_scaled)
-                    # price_table[client_idx][task_idx] = shapely_value_scaled
-                    price_table[client_idx][task_idx].append((epoch, shapely_value_scaled))
+                ### Update price table
+                for task_idx in range(len(task_list)):
+                    if task_list[task_idx].selected_client_idx is None:
+                        continue
+                    selected_client_index = task_list[task_idx].selected_client_idx
+                    for idx in range(len(selected_client_index)):
+                        client_idx = selected_client_index[idx]
+                        shapely_value_scaled = shapely_value_table[task_idx][idx]
+                        # shapely_value_scaled = shapley_value * len(selected_client_index) / args.num_users
+                        # price_table[client_idx][task_idx] = ((epoch / (epoch + 1)) * price_table[client_idx][task_idx] \
+                        #     + (1 / (epoch + 1)) * shapely_value_scaled)
+                        # price_table[client_idx][task_idx] = shapely_value_scaled
+                        price_table[client_idx][task_idx].append((epoch, shapely_value_scaled, task_list[task_idx].delta_accu))
+                
+                total_cost = 0
+                bid_list = [task.delta_accu * task.bid_per_loss_delta for task in task_list]
+                total_bid = sum(bid_list)
             
-            total_cost = 0
-            bid_list = [task.delta_accu * task.bid_per_loss_delta for task in task_list]
-            total_bid = sum(bid_list)
-        
+                for task in task_list:
+                    if task.selected_client_idx is None:
+                        continue
+                    for client_idx in task.selected_client_idx :
+                        total_cost += cost_list[client_idx]
+
+                assert price_table is not None
+            
+                ### Update bid table
+                for task_idx in range(len(task_list)):
+                    if task_list[task_idx].selected_client_idx is None:
+                        continue
+                    selected_client_index = task_list[task_idx].selected_client_idx
+                    for idx in range(len(selected_client_index)):
+                        client_idx = selected_client_index[idx]
+                        shapley_value = shapely_value_table[task_idx][idx]
+                        bid_table[client_idx][task_idx] = shapley_value * bid_list[task_idx]
+
+            ###select clients for all tasks
+            if args.policy == "random":
+                succ_cnt, reward = policy.random_select_clients(args.num_users, task_list)
+            elif args.policy == "momentum":
+                succ_cnt, reward = policy.momentum_select_clients(args.num_users, task_list)
+                # if use_all_users == True :
+                #     idxs_users = momemtum_based(args.num_users)
+                # else:
+                #     idxs_users = momemtum_based(m)
+            elif args.policy == "simple":
+                succ_cnt, reward = policy.simple_select_clients(args.num_users, task_list)
+            elif args.policy == "simple_reverse":
+                succ_cnt, reward = policy.simple_select_clients(args.num_users, task_list, reverse=True)
+            elif args.policy == "size":
+                succ_cnt, reward = policy.datasize_select_clients(args.num_users,task_list)
+            elif args.policy == "afl":
+                succ_cnt, reward = policy.AFL_select_clients(args.num_users, task_list)
+            elif args.policy == "greedy":
+                norm_bid_table = util.normalize_data(bid_table)
+                succ_cnt, reward = policy.greedy_select_clients(args.num_users, task_list, norm_bid_table)
+            elif args.policy == "nmfli":
+                if args.verbose:
+                    util.pretty_print_2darray("Price Table [client\\task]", price_table)
+                ask_table = util.calcualte_client_value(price_table, client_feature_list)
+                if args.verbose:
+                    util.pretty_print_2darray("Ask Table [client\\task]", ask_table)
+                norm_ask_table = util.normalize_data(ask_table)
+                norm_bid_table = util.normalize_data(bid_table)
+                succ_cnt, reward = policy.my_select_clients(
+                        norm_ask_table,
+                        client_feature_list,
+                        task_list,
+                        norm_bid_table)
+                # if use_all_users == True :
+                #     idxs_users = shap_based(args.num_users)
+                # else:
+                #     idxs_users = shap_based(m)
+            elif args.policy == "debug":
+                idxs_users = np.array(list(range(args.num_users)))[:m]
+            else:
+                raise ValueError(f"Invalid policy {args.policy}")
+
             for task in task_list:
-                if task.selected_client_idx is None:
-                    continue
-                for client_idx in task.selected_client_idx :
-                    total_cost += cost_list[client_idx]
-
-            assert price_table is not None
-        
-            ### Update bid table
-            for task_idx in range(len(task_list)):
-                if task_list[task_idx].selected_client_idx is None:
-                    continue
-                selected_client_index = task_list[task_idx].selected_client_idx
-                for idx in range(len(selected_client_index)):
-                    client_idx = selected_client_index[idx]
-                    shapley_value = shapely_value_table[task_idx][idx]
-                    bid_table[client_idx][task_idx] = shapley_value * bid_list[task_idx]
-
-        ###select clients for all tasks
-        if args.policy == "random":
-            succ_cnt, reward = policy.random_select_clients(args.num_users, task_list)
-        elif args.policy == "momentum":
-            succ_cnt, reward = policy.momentum_select_clients(args.num_users, task_list)
-            # if use_all_users == True :
-            #     idxs_users = momemtum_based(args.num_users)
-            # else:
-            #     idxs_users = momemtum_based(m)
-        elif args.policy == "simple":
-            succ_cnt, reward = policy.simple_select_clients(args.num_users, task_list)
-        elif args.policy == "simple_reverse":
-            succ_cnt, reward = policy.simple_select_clients(args.num_users, task_list, reverse=True)
-        elif args.policy == "size":
-            succ_cnt, reward = policy.datasize_select_clients(args.num_users,task_list)
-        elif args.policy == "afl":
-            succ_cnt, reward = policy.AFL_select_clients(args.num_users, task_list)
-        elif args.policy == "greedy":
-            norm_bid_table = util.normalize_data(bid_table)
-            succ_cnt, reward = policy.greedy_select_clients(args.num_users, task_list, norm_bid_table)
-        elif args.policy == "nmfli":
-            if args.verbose:
-                util.pretty_print_2darray("Price Table [client\\task]", price_table)
-            ask_table = util.calcualte_client_value(price_table, client_feature_list)
-            if args.verbose:
-                util.pretty_print_2darray("Ask Table [client\\task]", ask_table)
-            norm_ask_table = util.normalize_data(ask_table)
-            norm_bid_table = util.normalize_data(bid_table)
-            succ_cnt, reward = policy.my_select_clients(
-                    norm_ask_table,
-                    client_feature_list,
-                    task_list,
-                    norm_bid_table)
-            # if use_all_users == True :
-            #     idxs_users = shap_based(args.num_users)
-            # else:
-            #     idxs_users = shap_based(m)
-        elif args.policy == "debug":
-            idxs_users = np.array(list(range(args.num_users)))[:m]
-        else:
-            raise ValueError(f"Invalid policy {args.policy}")
-
-        for task in task_list:
-            task.end_of_epoch()
+                task.end_of_epoch()
 
     # Cache results
     header = ["Step"]

@@ -55,6 +55,7 @@ def policy_legend_name(policy):
     else:
         raise ValueError(policy)
 
+IGNORE_POLICY = ["simple"]
 target_label_to_fig_dict = {}
 sub_fig_num = 3
 
@@ -62,6 +63,8 @@ for _file in sorted(os.listdir(exp_dir)):
     if not _file.endswith(".csv"):
         continue
     rst = key_to_config(_file)
+    if rst["policy"] in IGNORE_POLICY:
+        continue
     print(rst["dataset"], rst["target_label"], rst["model"], rst["policy"])
     if rst["target_label"] not in target_label_to_fig_dict:
         target_label_to_fig_dict[rst["target_label"]] = [[] for _ in range(sub_fig_num)]
