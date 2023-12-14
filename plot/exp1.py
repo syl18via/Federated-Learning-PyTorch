@@ -71,12 +71,19 @@ for _file in sorted(os.listdir(exp_dir)):
     sub_fig_list = target_label_to_fig_dict[rst["target_label"]]
     # ax0.plot(df["Step"], df["Task 0 test accu."], alpha=0.3)
     # smooth
-    sub_fig_list[0].append((df["Step"], smooth(df["Task 0 test accu."], .9), policy_legend_name(rst["policy"])))
-    sub_fig_list[1].append((df["Step"], smooth(df["Task 1 test accu."], .9), policy_legend_name(rst["policy"])))
-    sub_fig_list[2].append((df["Step"], (smooth(df["Task 0 test accu."], .9) + smooth(df["Task 1 test accu."], .9)) / 2, policy_legend_name(rst["policy"])))
+    kwargs = {
+        "label": policy_legend_name(rst["policy"])
+    }
+    if rst["policy"] == "nmfli":
+        kwargs["color"] = "red"
+        kwargs["linewidth"] = 2
+        # kwargs["markersize"] = 2
+    sub_fig_list[0].append((df["Step"], smooth(df["Task 0 test accu."], .9), kwargs))
+    sub_fig_list[1].append((df["Step"], smooth(df["Task 1 test accu."], .9), kwargs))
+    sub_fig_list[2].append((df["Step"], (smooth(df["Task 0 test accu."], .9) + smooth(df["Task 1 test accu."], .9)) / 2, kwargs))
 
 for target_label in target_label_to_fig_dict.keys():
-    sub_fig_list = target_label_to_fig_dict[rst["target_label"]]
+    sub_fig_list = target_label_to_fig_dict[target_label]
     fig = plt.figure(figsize=(12, 8))
     _fig_base = fig_base(sub_fig_num)
     all_subfig = []
@@ -85,8 +92,8 @@ for target_label in target_label_to_fig_dict.keys():
         all_subfig.append(ax)
 
     for sub_fig_id, sub_fig_data in enumerate(sub_fig_list):
-        for x, y, label in sub_fig_data:
-            all_subfig[sub_fig_id].plot(x, y, label=label)
+        for x, y, kwargs in sub_fig_data:
+            all_subfig[sub_fig_id].plot(x, y, **kwargs)
             
     for sub_fig_id in range(sub_fig_num):
         all_subfig[sub_fig_id].set_xlabel("Step")

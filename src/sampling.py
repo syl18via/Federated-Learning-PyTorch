@@ -133,7 +133,7 @@ CLIENT_DATA_DIST = np.array([
 CLIENT_NUM = CLIENT_DATA_DIST.shape[0]
 CLASS_NUM = CLIENT_DATA_DIST.shape[1]
 
-def load_custom_dataset(dataset, num_users):
+def load_custom_dataset(dataset, num_users, is_even_datasize):
     """
     Sample non-I.I.D client data from MNIST dataset
     :param dataset:
@@ -145,7 +145,6 @@ def load_custom_dataset(dataset, num_users):
 
     total_data_size = sum(counter.values())
 
-    is_even_datasize = True
     if is_even_datasize:
         ### Each client has the same size of data
         data_size_per_client = int(total_data_size / CLIENT_NUM)
@@ -404,7 +403,10 @@ def get_dataset(args):
 
         # sample training data amongst users
         if True:
-            client2dataidxs = load_custom_dataset(dataset=train_dataset, num_users=args.num_users)
+            client2dataidxs = load_custom_dataset(
+                dataset=train_dataset,
+                num_users=args.num_users,
+                is_even_datasize=(not args.unequal))
         elif args.iid:
             # Sample IID user data from Mnist
             client2dataidxs = cifar_iid(train_dataset, args.num_users)
@@ -435,7 +437,10 @@ def get_dataset(args):
 
         # sample training data amongst users
         if True:
-            client2dataidxs = load_custom_dataset(dataset=train_dataset, num_users=args.num_users)
+            client2dataidxs = load_custom_dataset(
+                dataset=train_dataset,
+                num_users=args.num_users,
+                is_even_datasize=(not args.unequal))
         elif args.halfiid:
             client2dataidxs = mnist_iid_noniid(train_dataset, args.num_users)
         elif args.iid:

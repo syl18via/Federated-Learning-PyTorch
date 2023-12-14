@@ -57,7 +57,6 @@ def my_select_clients(ask_table, client_feature_list, task_list, bid_table):
     '''
     ### policy
     
-
     ### shape of task_bid_list = (task_num)
     task_bid_list = np.sum(bid_table, axis=0)
 
