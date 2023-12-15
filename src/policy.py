@@ -341,19 +341,20 @@ def AFL_select_clients(num_of_client, task_list):
         # selected_client_idxs = np.append(selected, selected2, axis=0)
 
         selected_num = _task.required_client_num
-        clients_candidates = list(range(num_of_client))
+        clients_candidates = [client_id for client_id in range(num_of_client)
+                                if free_client[client_id]]
         delete_num = int(alpha1 * num_of_client)
         sel_num = int((1 - alpha3) * selected_num)
         datasize = [_task.all_clients[client_id].datasize for client_id in clients_candidates]
         AFL_Valuation = np.array(datasize) * alpha2
-        tmp_value = np.vstack([np.arange(num_of_client), AFL_Valuation])
+        tmp_value = np.vstack([np.arange(clients_candidates), AFL_Valuation])
         tmp_value = tmp_value[:, tmp_value[1, :].argsort()]
         prob = np.exp(alpha2 * tmp_value[1, delete_num:])
         prob = prob/np.sum(prob)
         sel1 = np.random.choice(np.array(tmp_value[0, delete_num:], dtype=np.int64), 
                                     sel_num, replace=False, p=prob)
 
-        remain = set(np.arange(num_of_client)) - set(sel1)
+        remain = set(clients_candidates) - set(sel1)
         sel2 = np.random.choice(list(remain), selected_num-sel_num, replace = False)
         selected_client_index = np.append(sel1, sel2)
         
