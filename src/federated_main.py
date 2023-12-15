@@ -148,10 +148,11 @@ if __name__ == '__main__':
                 shapely_value_table = [task.shap() for task in task_list]
                 ### Normalize using sigmoid
                 shapely_value_table = [
-                    util.sigmoid(np.array(elem)) if len(elem) > 0 else elem 
+                    np.array(util.sigmoid(np.array(elem))) if len(elem) > 0 else np.array(elem) 
                         for elem in shapely_value_table]
-                shapely_value_table = np.array(shapely_value_table)
-                shapely_value_table /= np.expand_dims(np.max(shapely_value_table, axis=1), axis=1)
+                shapely_value_table = [arr / np.max(arr) for arr in shapely_value_table]
+                # shapely_value_table = np.array(shapely_value_table)
+                # shapely_value_table /= np.expand_dims(np.max(shapely_value_table, axis=1), axis=1)
                 if args.verbose:
                     util.pretty_print_2darray("Shap Table [task\\client]", shapely_value_table)
 
