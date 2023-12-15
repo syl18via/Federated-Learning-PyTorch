@@ -5,7 +5,7 @@ import torch
 from torch import nn
 import torch.optim as optim
 
-from exp_utils import DatasetSplit, DatasetRelabel
+from exp_utils import DatasetSplit, DatasetRelabel, NoisyDataloader
 from torch.utils.data import DataLoader
 from sampling import get_dataset, check_dist
 
@@ -57,7 +57,6 @@ class Client(DatasetSplit):
                 self.lable2data_idxs[label] = []
             self.lable2data_idxs[label].append(idx_of_split)
 
-
 def get_clients(args):
     train_dataset, test_dataset, user_groups = get_dataset(args)
     clients = {}
@@ -104,6 +103,9 @@ class VirtualClient:
             self.trainloader = DataLoader(self.dataset, batch_size=self.args.local_bs, shuffle=shuffle)
             self.validloader = self.testloader = None
 
+        if args.noisy:
+            self.trainloader = NoisyDataloader(self.trainloader)
+            
         self.trainloader_iter = iter(self.trainloader)
         self.device = 'cuda' if args.gpu else 'cpu'
         self.target_labels = target_labels

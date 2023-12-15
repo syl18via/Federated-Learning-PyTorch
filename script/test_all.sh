@@ -3,8 +3,9 @@ set -x
 export NMFLI_EXP_DATETIME=`date '+%Y%m%d-%H%M%S'`
 
 # Hyper-parameters
-export UNEVEN_DATASIZE=0
-export REQUIRE_CLIENT_NUM="3_2"
+export UNEVEN_DATASIZE=1
+# export REQUIRE_CLIENT_NUM="1_2"
+export USE_NOISY_X=0
 
 # Hyper-parameters that will be tried in one experiment
 DATASETS=(cifar)
@@ -16,12 +17,19 @@ TARGET_LABEL_CFGS=(non_overlap)
 # TARGET_LABEL_CFGS=(overlap identical)
 # ALL_METHODS=(random)
 
+# Decide the save data directory
+NMFLI_EXP_DIR=save/results/${NMFLI_EXP_DATETIME}
+if [[ -n ${REQUIRE_CLIENT_NUM} ]]; then
+    NMFLI_EXP_DIR=${NMFLI_EXP_DIR}-req_${REQUIRE_CLIENT_NUM}_client 
+fi
 if [[ ${UNEVEN_DATASIZE} == "1" ]]; then
-    NMFLI_EXP_DIR=save/results/${NMFLI_EXP_DATETIME}-req_${REQUIRE_CLIENT_NUM}_client-uneven_datasize
-else
-    NMFLI_EXP_DIR=save/results/${NMFLI_EXP_DATETIME}-req_${REQUIRE_CLIENT_NUM}_client
+    NMFLI_EXP_DIR=${NMFLI_EXP_DIR}-uneven_datasize 
+fi
+if [[ ${USE_NOISY_X} == "1" ]]; then
+    NMFLI_EXP_DIR=${NMFLI_EXP_DIR}-noisy_x 
 fi
 mkdir -p $NMFLI_EXP_DIR
+
 for dataset in ${DATASETS[@]}; do
 for target_label in ${TARGET_LABEL_CFGS[@]}; do
 for model in ${MODELS[@]}; do
@@ -36,7 +44,8 @@ for policy in ${ALL_METHODS[@]}; do
         --num_users=10 \
         --policy=${policy} \
         --iid=0 \
-        --verbose=1
+        --verbose=1 \
+        --noisy=${USE_NOISY_X}
     else
         nohup \
         python3 -u src/federated_main.py \
@@ -47,6 +56,7 @@ for policy in ${ALL_METHODS[@]}; do
             --num_users=10 \
             --policy=${policy} \
             --iid=0 \
+            --noisy=${USE_NOISY_X} \
             > ${NMFLI_EXP_NAME}.log 2>&1
     fi
 done

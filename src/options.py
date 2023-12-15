@@ -57,6 +57,8 @@ def args_parser():
     parser.add_argument('--halfiid', type=int, default=0,
                         help='Default set to non-halfIID. Set to 1 for halfIID.')
     parser.add_argument('--target_label', type=str, default="non_overlap", help="The labels required by each task")
+    parser.add_argument('--noisy', type=int, default=0,
+                        help='Set to 1 to add noise to image')
     
     # other arguments
     parser.add_argument('--gpu', default=None, help="To use cuda, set \

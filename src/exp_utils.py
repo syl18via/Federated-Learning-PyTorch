@@ -130,6 +130,48 @@ def average_weights(w):
     return w_avg
 
 
+class NoisyDataloader:
+    def __init__(self, dataloader):
+        self.dataloader = dataloader
+        self.trainloader_iter = None
+
+    def __iter__(self):
+        self.trainloader_iter = iter(self.dataloader)
+        return self
+    
+    def __next__(self, noise_type="gauss"):
+        images, labels = next(self.trainloader_iter)
+        # Add noise to x
+        noisy = self.add_noisy(images, noise_type)
+        return images, labels
+    
+    def add_noisy(self, image, noise_type):
+        if image.shape[-1] == image.shape[-2]:
+            N, C, H, W = image.shape
+            nhwc = False
+        else:
+            N, H, W, C = image.shape
+            nhwc = True
+            
+        if noise_type == "gauss":
+            mean = 0
+            var = 0.1
+            sigma = var**0.5
+            gauss = np.random.normal(mean, sigma, (N, C, H, W))
+            if nhwc: 
+                gauss = gauss.reshape(N, H, W, C)
+            else:
+                gauss = gauss.reshape(N, C, H, W)
+            noisy = image + gauss
+            return noisy
+        elif noise_type == "poisson":
+            vals = len(np.unique(image))
+            vals = 2 ** np.ceil(np.log2(vals))
+            noisy = np.random.poisson(image * vals) / float(vals)
+            return noisy
+        else:
+            raise ValueError(noise_type)
+
 def exp_details(args):
     print('\nExperimental details:')
     print(f'    Model     : {args.model}')
