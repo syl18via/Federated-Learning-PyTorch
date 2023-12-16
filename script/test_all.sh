@@ -13,7 +13,7 @@ MODELS=(cnn)
 TARGET_LABEL_CFGS=(non_overlap overlap identical)
 ALL_METHODS=(random afl size nmfli greedy)
 
-TARGET_LABEL_CFGS=(non_overlap)
+# TARGET_LABEL_CFGS=(non_overlap)
 # TARGET_LABEL_CFGS=(overlap identical)
 # ALL_METHODS=(random)
 
@@ -45,7 +45,8 @@ for policy in ${ALL_METHODS[@]}; do
         --policy=${policy} \
         --iid=0 \
         --verbose=1 \
-        --noisy=${USE_NOISY_X}
+        --noisy=${USE_NOISY_X} \
+        --unequal=${UNEVEN_DATASIZE}
     else
         nohup \
         python3 -u src/federated_main.py \
@@ -57,6 +58,7 @@ for policy in ${ALL_METHODS[@]}; do
             --policy=${policy} \
             --iid=0 \
             --noisy=${USE_NOISY_X} \
+            --unequal=${UNEVEN_DATASIZE} \
             > ${NMFLI_EXP_NAME}.log 2>&1
     fi
 done

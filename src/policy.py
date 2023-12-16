@@ -347,7 +347,7 @@ def AFL_select_clients(num_of_client, task_list):
         sel_num = int((1 - alpha3) * selected_num)
         datasize = [_task.all_clients[client_id].datasize for client_id in clients_candidates]
         AFL_Valuation = np.array(datasize) * alpha2
-        tmp_value = np.vstack([np.arange(clients_candidates), AFL_Valuation])
+        tmp_value = np.vstack([np.array(clients_candidates), AFL_Valuation])
         tmp_value = tmp_value[:, tmp_value[1, :].argsort()]
         prob = np.exp(alpha2 * tmp_value[1, delete_num:])
         prob = prob/np.sum(prob)
