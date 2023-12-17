@@ -55,8 +55,10 @@ def my_select_clients(ask_table, client_feature_list, task_list, bid_table):
         bid_table: numpy array
             shape = (client_num, task_num)
     '''
-    ### policy
-    
+    expore_rate = 0.3
+    if random.random() < expore_rate:
+        return random_select_clients(len(client_feature_list), task_list)
+        
     ### shape of task_bid_list = (task_num)
     task_bid_list = np.sum(bid_table, axis=0)
 
