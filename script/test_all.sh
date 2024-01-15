@@ -13,9 +13,9 @@ MODELS=(cnn)
 TARGET_LABEL_CFGS=(non_overlap overlap identical)
 ALL_METHODS=(random afl size nmfli greedy)
 
-# TARGET_LABEL_CFGS=(non_overlap)
+TARGET_LABEL_CFGS=(identical)
 # TARGET_LABEL_CFGS=(overlap identical)
-# ALL_METHODS=(random)
+ALL_METHODS=(nmfli)
 
 # Decide the save data directory
 NMFLI_EXP_DIR=save/results/${NMFLI_EXP_DATETIME}
@@ -23,7 +23,9 @@ if [[ -n ${REQUIRE_CLIENT_NUM} ]]; then
     NMFLI_EXP_DIR=${NMFLI_EXP_DIR}-req_${REQUIRE_CLIENT_NUM}_client 
 fi
 if [[ ${UNEVEN_DATASIZE} == "1" ]]; then
-    NMFLI_EXP_DIR=${NMFLI_EXP_DIR}-uneven_datasize 
+    NMFLI_EXP_DIR=${NMFLI_EXP_DIR}-uneven_datasize
+else
+    NMFLI_EXP_DIR=${NMFLI_EXP_DIR}-even_datasize
 fi
 if [[ ${USE_NOISY_X} == "1" ]]; then
     NMFLI_EXP_DIR=${NMFLI_EXP_DIR}-noisy_x 
